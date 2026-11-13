@@ -408,6 +408,7 @@ EN = {
     '  {n} Memories unter SSR nicht übernommen.': '  {n} memories below SSR not taken over.',
     'Nur Spieler der Seltenheit {r} (Manage Players wird dafür nach Seltenheit sortiert, danach wieder nach Deploy).': 'Only players of rarity {r} (Manage Players is sorted by rarity for this, then back to Deploy).',
     'Die Sortierung „{s}“ war nicht zu finden': 'The sorting “{s}” was not found',
+    '  {name} steht auf Lv.{lv} (unter {min}): übersprungen.': '  {name} is at Lv.{lv} (below {min}): skipped.',
     'Im Filter steht kein Status „{s}“': 'The filter shows no status “{s}”',
     'Potentials im Inventar (nur Legendary auf +12) ...': 'Potentials in the inventory (only Legendary at +12) ...',
     'Spieler: Memories ...': 'Players: memories ...',

@@ -491,7 +491,11 @@ class Scanner(Bot):
         """Manage Players: Sortierung wählen ('rarity', 'deploy', ...). Das Menü geht über dem Knopf Filter auf."""
         self.dev.tap(*MP_SORT, 'Sortierung öffnen', wait=1.0)
         for _ in range(3):
-            hit = [b for b in self.ocr(self.snap(), MP_SORT_MENU) if b.n == what]
+            boxes = self.ocr(self.snap(), MP_SORT_MENU)
+            # 13.11.2026: bei einem Spieler fand er „level“ nicht (anders gelesen); daher auch „lv“ und Teile des Worts
+            alias = {'level': ('level', 'lv', 'lvl'), 'deploy': ('deploy',), 'rarity': ('rarity',)}.get(what, (what,))
+            hit = ([b for b in boxes if b.n == what] or [b for b in boxes if b.n in alias]
+                   or [b for b in boxes if any(a in b.n for a in alias) and len(b.n) <= len(what) + 4])
             if hit:
                 self.dev.tap(hit[0].cx, hit[0].cy, 'Sortierung ' + what, wait=1.5)
                 return True
@@ -1039,6 +1043,13 @@ class Scanner(Bot):
                 # sie wird nur notiert.
                 if pid is not None:
                     self.lv1_cards.append({'id': pid, 'name': name, 'lv': v})
+                if self.sort_level and not self.sorted_level:
+                    # Liste nicht nach Level sortiert (Sortierung nicht gefunden): dann kommen danach noch höhere
+                    # Karten, also diese überspringen statt aufzuhören (13.11.2026)
+                    self.log(T('  {name} steht auf Lv.{lv} (unter {min}): übersprungen.',
+                               name=name or raw.strip(), lv=v, min=self.min_level))
+                    self.skip_card()
+                    continue
                 self.log(T('  {name} steht auf Lv.{lv} (unter {min}): hier hört der Scan der Spieler auf.',
                            name=name or raw.strip(), lv=v, min=self.min_level))
                 break
