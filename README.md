@@ -10,8 +10,10 @@ Hilfsprogramm für **HAIKYU!! FLY HIGH** (Global) im **LDPlayer** unter Windows.
 > ⚠️ **Inoffizielles Fanprojekt, Nutzung auf eigene Gefahr.** Laut den Fair-Play-Regeln des Spiels ist Software verboten, die mit dem Spiel zusammenarbeitet. Dein Konto kann dafür bestraft werden.
 
 ## Download
-Click the green **Code** button → **Download ZIP**, then unzip it into its own folder.
-Grüner Knopf **Code** → **Download ZIP**, dann in einen eigenen Ordner entpacken.
+**[⬇ Download HFH-Bot (ZIP)](https://github.com/EmderBeast/hfh-bot/archive/refs/heads/main.zip)**, then unzip it into its own folder.
+**[⬇ HFH-Bot herunterladen (ZIP)](https://github.com/EmderBeast/hfh-bot/archive/refs/heads/main.zip)**, dann in einen eigenen Ordner entpacken.
+
+(Same as the green **Code** button → **Download ZIP**. / Dasselbe wie der grüne Knopf **Code** → **Download ZIP**.)
 
 ## Quick start / Schnellstart
 1. LDPlayer: Settings → Other settings → ADB debugging → **Open local connection**, then restart LDPlayer.
