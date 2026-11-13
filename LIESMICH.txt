@@ -1,0 +1,236 @@
+﻿HFH-BOT
+=======
+
+Zwei Dinge für den CC-Simulator, im LDPlayer:
+- Potentials und Memories anziehen: zieht im Spiel genau die Potentials und Memories an, die im
+  Simulator auf deinen Spielern liegen. So wechselst du mit einem Befehl zwischen zwei Aufstellungen, zum Beispiel "Rating" und "Score".
+- Account scannen: liest deine Spieler (Stufe, Skills, Rating, Memory, Potentials), deine übrigen
+  Potentials, Memories, Bonds, Cheers und Coaches aus dem Spiel und legt sie als Datei ab, die der
+  Simulator übernimmt.
+(English: see README.txt)
+
+
+EINMAL EINRICHTEN
+-----------------
+1. LDPlayer: Einstellungen > Andere Einstellungen > ADB-Debugging > "Lokale Verbindung öffnen".
+   Danach den LDPlayer einmal neu starten.
+2. Die Auflösung im LDPlayer bleibt 16:9 (zum Beispiel 1600 x 900 oder 1920 x 1080).
+3. Doppelklick auf start.bat. Beim ersten Start richtet er sich ein (1 bis 3 Minuten). Er spricht die
+   Sprache der Seite, von der du ihn geladen hast (umstellen im Menü mit "s"); steht in potbot.ini
+   keine, fragt er danach (d = Deutsch). Fehlt Python, fragt er, ob er Python 3.12 installieren soll;
+   danach start.bat noch einmal starten.
+4. Im Menü "t" eingeben: Er zeigt, welche Seite und welchen Spieler er im Spiel sieht, und liest
+   dessen Teile.
+
+
+AUFSTELLUNG AUS DEM SIMULATOR HOLEN (für jede Aufstellung einmal)
+-----------------------------------------------------------------
+Der Simulator startet auf Englisch; die englischen Namen stehen in Klammern.
+1. Simulator > Potential-Rechner (Potential calculator):
+   Modus "Ganzes Team, kein Teil doppelt" (Whole team, no piece twice),
+   Ziel "Fürs Rating" (For the rating) oder "Für den Score" (For the score),
+   "Berechnen" (Calculate), dann "Alle anziehen" (Equip all).
+2. Simulator > Menü "Speichern" (Save) > Kasten "Export / Import" > "Kopieren" (Copy).
+3. Im Bot "n" eingeben, Enter drücken, Namen geben: "Rating" (oder "Score"). Einfügen musst du nichts:
+   Der Bot liest den kopierten Text selbst aus der Zwischenablage.
+
+Mehrere Teams in einer Aufstellung (zum Beispiel drei Teams fürs Rating): Nach dem ersten Team
+bei "Noch ein Team dazunehmen?" mit j antworten, im Simulator das nächste Team öffnen (Reiter über
+dem Feld) und wieder "Kopieren".
+
+Der Bot nimmt nur Spieler, die im Simulator echte Teile im Kreis tragen (nach "Anziehen" oder
+"Alle anziehen"). Spieler mit einer Vorlage aus dem Potential-Guide zeigt er als "übersprungen".
+
+
+WECHSELN
+--------
+1. Im Spiel: Player > irgendeinen Spieler antippen > Potential. Die Seite "Player Potential" ist offen.
+2. Im Bot zuerst "p" (Probelauf): Er liest alles und schreibt auf, was er tun würde, ändert aber nichts.
+3. Dann die Nummer der Aufstellung eingeben: Jetzt zieht er an.
+
+Während er läuft: nichts im Emulator anklicken. Abbrechen geht jederzeit mit Strg+C.
+Je nachdem, wie viele Teile wechseln, dauert es 10 bis 30 Minuten.
+
+
+ACCOUNT SCANNEN
+---------------
+1. Im Spiel den Startbildschirm öffnen. In "Manage Players" keinen Filter eingeschaltet lassen.
+2. Im Bot "k" eingeben und wählen, was er lesen soll (Enter = alles):
+     1 Spieler: Stufe, Skills, Rating, Memory und Potentials   15 bis 30 Minuten
+     2 Potentials im Inventar (nur Legendary)                  etwa 2 Sekunden pro Teil
+     3 Memories im Inventar                                    etwa 1 Sekunde pro Memory
+     4 Bonds (Sammlungs-Bonds und Bond-Stufen)                 3 bis 8 Minuten
+     5 Cheers und Rating Bonus                                 1 bis 2 Minuten
+     6 Coaches: Stufe, Rating und Positional Advantages        2 bis 4 Minuten
+3. Er geht die Seiten selbst durch. Am Ende steht die Datei im Ordner "scans"
+   (hfh-scan-DATUM.json). Bricht er ab (Strg+C oder ein Fehler), ist das bis dahin Gelesene drin.
+4. Simulator > Menü "Speichern" (Save) > Kasten "HFH-Bot" > "Scan-Datei laden" (Load scan file).
+   Die Datei kommt in "Mein Account". Was sie nicht enthält, bleibt im Simulator, wie es ist.
+
+Der Scan öffnet nur Seiten, Reiter und Fenster und blättert in Listen. Er kauft, verbessert,
+verkauft, ersetzt und speichert nichts. Was er nicht sicher lesen konnte, steht am Ende unter
+"Hinweise" (und im Protokoll): Das bleibt im Simulator, wie es war, oder fehlt in der Datei.
+Welche Cheers im Spiel eingesetzt sind, liest er nicht; die bleiben im Simulator, wie sie waren.
+Von den Coaches liest er alle ab Stufe 3 (mit Positional Advantages); von Coaches, die du nur auf
+Stufe 1 oder 2 hast, eins.
+
+
+WAS ER BEIM ANZIEHEN MACHT
+--------------------------
+- Er geht mit den Pfeilen durch deine Spieler und liest bei den Spielern der Aufstellung jedes Teil.
+- Teile, die ein anderer aus der Aufstellung braucht, zieht er zuerst aus.
+- Die übrigen Teile sucht er im Potential Inventory (Filter: Set und Legendary) und zieht sie an.
+  Nach jedem "Equip" sieht er nach, ob das richtige Teil sitzt.
+- Trägt ein Spieler außerhalb der Aufstellung ein gesuchtes Teil, nimmt er es ihm ab.
+- Am Ende liest er alle geänderten Spieler noch einmal.
+- Alles steht im Protokoll im Ordner "logs", bei Problemen mit Bildschirmfotos.
+
+
+MEMORIES
+--------
+Nach den Potentials geht er unter Player > Memory ("Featured Memory") die Spieler der Aufstellung
+durch. Trägt einer nicht die Memory aus dem Simulator (gleiche Memory, gleiche Stufe), tippt er
+"Replace", sucht sie in der Auswahl und tippt dort "Replace". Danach liest er nach, ob sie sitzt.
+- Er nimmt am liebsten eine freie Kopie (in der Auswahl ohne kleines Gesicht oben rechts).
+- Sollen zwei Spieler der Aufstellung dieselbe Memory tragen, nimmt er nur freie Kopien. Hast du
+  sie nur einmal, bekommt sie einer, beim anderen steht im Ergebnis "keine freie Kopie".
+- Spieler auf Lv.1 tauchen unter Featured Memory nicht auf und bekommen keine.
+
+WAS ER NIE TUT
+--------------
+"Replace" tippt er nur auf der Seite Featured Memory, um eine Memory anzulegen.
+Er drückt nie MAX, Enhance, Dismantle, Quick Equip, Quick Unequip, Recommended, Lock oder
+irgendetwas zum Kaufen, und er gibt keine Währung aus. Vor jedem Tippen liest er, was an der
+Stelle steht, und hält sofort an, wenn dort so ein Knopf ist.
+
+
+GUT ZU WISSEN
+-------------
+- Menü: Nummer = anziehen, p = Probelauf, n = neue Aufstellung, a = ansehen, l = löschen,
+  t = testen, k = Account scannen, s = Sprache (Deutsch/English), q = beenden.
+- "t" zeigt auch auf den Seiten des Scans (Player Stats, Featured Memory, Inventar, Bond Info,
+  Team Cheer mit offenem Fenster, Coach), was er dort liest.
+- Die Aufstellungen liegen im Ordner "loadouts", die Scans in "scans", die Protokolle in "logs".
+- Der Filter im Potential Inventory bleibt danach auf Set und Legendary stehen.
+- Die Spielsprache muss Englisch sein.
+- Geht etwas schief: Protokoll und Bilder aus "logs" schicken.
+- potbot.ini: Sprache, Pfad zu adb.exe (falls er ihn nicht findet) und welcher LDPlayer (bei mehreren).
+- Hilfsprogramme wie dieses sind in den Nutzungsbedingungen von Spielen meist nicht erlaubt.
+  Die Nutzung ist dein eigenes Risiko.
+
+NEU IN 1.4 (07.11.2026)
+-----------------------
+- Account-Scan: Doppelte Karten in "Manage Players" (mehrere Karten desselben Spielers) beenden den
+  Scan nicht mehr. Er überspringt sie und liest alle Spieler, so viele wie die Gallery zählt.
+- Memories im Inventar: Die Stufe ("Memory Tier") wird jetzt auch bei Memories mit drei Wertezeilen gelesen.
+- Memories bei den Spielern (Featured Memory): Die Liste wird mit dem richtigen Abstand gelesen.
+
+NEU IN 1.5 (07.11.2026)
+-----------------------
+- Account-Scan: auf Wunsch nur SP-, UR- und SSR-Spieler und -Memories (Frage beim Start). Manage Players wird dafür
+  nach Seltenheit sortiert und danach wieder nach Deploy. Der Simulator lässt SR, R und N dann so, wie du sie eingestellt hast.
+- Potentials im Inventar: liest jetzt die ganze Liste (blättert auf den Kacheln) und gesperrte Teile (Status Locked);
+  gezählt werden nur Teile auf +12.
+- Spieler: Skills, die noch Training brauchen, zählen als 0; die Stufe am Level-Cap ("Lv. 70 (MAX)") wird gelesen.
+- Memories der Spieler (Featured Memory): Die Liste läuft im Kreis und die Namen als Laufschrift; der Bot findet die
+  Spieler jetzt über ihre Namen. Unsichere Memories bleiben im Simulator, wie sie sind.
+- Ein offenes Teile-Fenster schließt er auf einer freien Fläche (vorher lag dort nach dem Blättern eine Kachel).
+
+NEU IN 1.6 (08.11.2026)
+-----------------------
+- Potentials im Inventar: zählt jetzt genau (am Spiel geprüft: alle sechs Plätze stimmen). Er wischt nur noch auf
+  einer Kachel (zwischen zwei Reihen bewegt sich die Liste nicht), lädt die Liste zuerst ganz, zieht gleichmäßig
+  ohne Nachlaufen und zählt zwei gleiche Teile als zwei. Geht ein Teil nicht auf, tippt er es noch einmal an.
+
+NEU IN 1.7 (08.11.2026)
+-----------------------
+- Memories der Spieler: liest sie jetzt zuverlässig (im Test alle gelesenen richtig). Er geht die Liste unter
+  „Featured Memory“ Kachel für Kachel durch (sie ist nach Stufe sortiert), prüft am goldenen Rahmen, dass wirklich die
+  nächste Karte gewählt ist, und liest den durchlaufenden Namen, bis er die Version (Zusatz in Klammern) sicher kennt.
+  Er hört bei der ersten Karte auf Lv.1 auf; Spieler auf Lv.1 bekommen keine Memory zugeordnet.
+
+NEU IN 1.8 (08.11.2026)
+-----------------------
+- Memories anziehen: Eine Aufstellung bringt jetzt auch die Memory jedes Spielers mit; der Bot legt sie nach den
+  Potentials an (siehe MEMORIES).
+
+NEU IN 1.9 (10.11.2026)
+-----------------------
+- Potentials: Direkt nach "Equip" läuft im Kreis eine Animation. Die Kontrolle wartet jetzt darauf und tippt bis zu
+  dreimal; vorher brach der Bot ab, obwohl das Teil richtig saß (Kuroo, Platz I, im Lauf "Peak").
+- Bricht der Potential-Teil doch ab, steht im Ergebnis "Potentials NICHT fertig" statt "Nichts zu tun".
+- Memories: Der Bot erkennt in der Auswahl, welche Kopien schon jemand trägt, und nimmt zuerst eine freie. Sollen
+  zwei Spieler dieselbe Memory tragen und du hast sie zweimal, bekommen jetzt beide eine (vorher keiner).
+
+NEU IN 1.10 (11.11.2026)
+------------------------
+- Account-Scan, Potentials der Spieler: Steht in der Zeile eines Nebenwerts noch ein fremder Text ("+4% +12"), zählt
+  jetzt der Wert direkt hinter dem Namen. Vorher fehlte das Teil in der Scan-Datei (Platz VI bei drei Spielern).
+- Account-Scan, Bonds: "SEIJOH's Senior Year Pillars" wird jetzt als "AOBA JOHSAI's Senior Year" erkannt.
+
+NEU IN 1.11 (11.11.2026)
+------------------------
+- Memories anziehen: Die Auswahl nach "Replace" ist nach Stufe sortiert. Der Bot liest jetzt die Schilder "Lv.N" unter
+  den Kacheln und hört bei der ersten Memory auf Lv.1 auf, statt jede einzelne anzutippen. Memories auf Lv.1 sucht er
+  nicht mehr durch (im Protokoll: "nur noch Lv.1, nicht weiter gesucht").
+- Account-Scan, Memories im Inventar: hört ebenfalls bei der ersten Memory auf Lv.1 auf. Memories auf Lv.1 stehen
+  dann nicht in der Scan-Datei.
+- Memories anziehen: Der Bot sucht immer im Reiter "All" von links nach rechts, nicht mehr in den Reitern WS, MB, S,
+  Li und OP.
+
+NEU IN 1.12 (11.11.2026)
+------------------------
+- Potentials: Klappt ein Teil oder ein Spieler nicht, meldet der Bot ihn als offen und macht mit dem nächsten weiter.
+  Vorher brach er die Potentials aller übrigen Spieler ab.
+- Potentials: Der Bot öffnet "Player Potential" jetzt selbst über "Manage Players". So gehen die Pfeile durch alle
+  Spieler, nicht nur durch die der Aufstellung im Spiel. Zeigen die Pfeile trotzdem nur wenige Spieler, steht das als
+  ACHTUNG im Protokoll.
+- Memories anziehen: Der Bot liest die Auswahl nach "Replace" nur einmal und merkt sich, welche Memory wo liegt. Beim
+  nächsten Spieler tippt er die gemerkte Kachel direkt an und prüft sie. Reihen, die nach dem Weiterschieben noch zu
+  sehen sind, liest er nicht mehr doppelt (vorher zählte er solche Kopien zweimal).
+- Account-Scan, Memories: Die Scan-Datei enthält zusätzlich "memoryCopies": jede Memory mit Stufe (Tier), Level und
+  Anzahl. "memories" bleibt wie bisher.
+
+NEU IN 1.13 (11.11.2026)
+------------------------
+- Potentials ausziehen: Der rote Knopf "Unequip" liegt bei manchen Plätzen dort, wo im Inventar "Quick Unequip" sitzt;
+  der Bot hielt deshalb mit einem Sicherheits-Stopp an. Auf "Player Potential" darf er den roten Knopf jetzt antippen.
+  "Quick Unequip" bleibt gesperrt, und er tippt nur, wo genau "Unequip" steht.
+- Spieler suchen: Doppelte Karten stehen hintereinander und sehen gleich aus. Der Bot hielt das erste Doppel für das
+  Ende der Liste und fand Spieler dahinter nicht. Jetzt tippt er über Doppel hinweg weiter.
+
+NEU IN 1.14 (11.11.2026)
+------------------------
+- Spieler suchen: Über doppelte Karten tippt der Bot mit den Pfeilen nicht mehr hinweg (bei 1385 Karten dauerte das
+  über eine Stunde). Einen Spieler, den die Pfeile nicht erreichen, sucht er jetzt in "Manage Players": Er liest die
+  Namensstreifen auf den Kacheln, tippt nur passende an und öffnet "Player Potential" direkt bei diesem Spieler.
+
+NEU IN 1.15 (11.11.2026)
+------------------------
+- Schneller: Das Bildschirmfoto kommt jetzt roh vom Emulator (0,4 statt 0,85 Sekunden), Seitentitel und Spielername
+  liest der Bot als eine Zeile (0,03 statt 0,3 bis 0,7 Sekunden), die Pausen nach dem Tippen sind kürzer
+  (potbot.ini: tempo = 0.7; 1.0 = wie bisher).
+- Filter im Inventar: nur noch Set + Legendary + Status, ohne Hauptwert. Derselbe Filter gilt so für alle Plätze und
+  Spieler mit diesem Set; vorher stellte der Bot ihn für fast jedes Teil neu ein.
+- Anziehen: Bei langem Set-Text liegt der rote Knopf "Equip" des Fensters dort, wo auf der Seite "Quick Unequip"
+  sitzt; der Bot hielt mit einem Sicherheits-Stopp an. Steht links daneben "MAX", ist es der Knopf des Fensters, und
+  er darf ihn antippen. "Quick Equip" und "Quick Unequip" bleiben gesperrt.
+- Bei einem Sicherheits-Stopp speichert der Bot ein Bildschirmfoto in logs\screenshots.
+- Memories: Der Bot sucht die Spieler nicht mehr über die Laufschrift links auf "Featured Memory" (etwa 10 Sekunden
+  je Kachel, und er verwechselte Sugawara mit Nishinoya). Er geht auf "Player Potential" zum Spieler, dann "Zurück"
+  und "Memory": Das Spiel öffnet Featured Memory genau bei diesem Spieler.
+- Memories: Die Auswahl nach "Replace" zeigt nur Memories für die Position des Spielers. Der Bot merkt sie sich
+  deshalb je Position; vorher suchte er z. B. die Memory eines WS in der Auswahl eines Liberos.
+- Spieler, die nur eine Memory bekommen (ohne Teile), sucht der Bot jetzt mit.
+- Teile-Fenster: Text der Seite dahinter landet nicht mehr in den Nebenwerten (Sugawara, Platz III).
+- Gesperrte Plätze (grau mit Schloss, z. B. bei SR-Karten) zählen als leer; ein nicht lesbarer Platz bricht den
+  Lauf nicht mehr ab.
+- Fehlt ein Teil, sucht der Bot erst alle Plätze des Sets mit dem Filter "locked", dann die fehlenden mit "unlocked".
+- Spielerliste: Der Bot sortiert "Manage Players" für seinen Lauf nach Level (hoch nach niedrig) und stellt am Ende
+  wieder "Deploy" ein. So stehen alle hochgelevelten Spieler vorn, und die Pfeile erreichen auch SR-Karten wie Watari
+  (vorher bis zu 14 Minuten Suche über die Kacheln).
+- Set-Filter im Inventar: 16 bis 21 statt 16 bis 33 Sekunden. Die Reihenfolge der Sets in der Auswahl ist bekannt;
+  der Bot blättert ohne hinzusehen in die Nähe und merkt sich die Knöpfe im Filter-Fenster.
+- Inventar: Der Leserahmen schnitt rechts die letzte Ziffer ab ("+72" wurde "+7"); richtige Teile galten als falsch.
+- Der Account-Scan liest mit Mindeststufe (potbot.ini: min_level, 2 bis 70) alle Spieler ab dieser Stufe und die
+  Memory gleich beim Spieler mit; die Scan-Datei enthält die Anzahl jeder Memory.
