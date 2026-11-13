@@ -496,6 +496,27 @@ class Scanner(Bot):
             alias = {'level': ('level', 'lv', 'lvl'), 'deploy': ('deploy',), 'rarity': ('rarity',)}.get(what, (what,))
             hit = ([b for b in boxes if b.n == what] or [b for b in boxes if b.n in alias]
                    or [b for b in boxes if any(a in b.n for a in alias) and len(b.n) <= len(what) + 4])
+            if not hit and what == 'level':
+                # Das Menü ist halb durchsichtig: „Level“ liegt über dem Namen einer Karte und wird mit ihm zusammen
+                # gelesen (z. B. „wintespolevel“; Screenshot 13.11.2026). Dann zählt auch ein Text, der auf level endet
+                hit = [b for b in boxes if b.n.endswith('level') and 'star' not in b.n]
+            if not hit:
+                # Die Einträge stehen immer in derselben Reihenfolge untereinander: aus den gelesenen Nachbarn die Stelle
+                # des gesuchten Eintrags ausrechnen
+                order = ['deploy', 'level', 'starlevel', 'rarity', 'position']
+                if what in order:
+                    got = {}
+                    for bx in boxes:
+                        if bx.n in order and bx.n not in got:
+                            got[bx.n] = bx
+                    if len(got) >= 2:
+                        ks = sorted(got, key=order.index)
+                        k0, k1 = ks[0], ks[-1]
+                        step = (got[k1].cy - got[k0].cy) / (order.index(k1) - order.index(k0))
+                        if step > 20:
+                            y = got[k0].cy + step * (order.index(what) - order.index(k0))
+                            self.dev.tap(got[k0].cx, y, 'Sortierung ' + what + ' (aus der Reihenfolge)', wait=1.5)
+                            return True
             if hit:
                 self.dev.tap(hit[0].cx, hit[0].cy, 'Sortierung ' + what, wait=1.5)
                 return True
