@@ -22,8 +22,14 @@ if not defined PY (
 if defined PY goto :venv
 
 echo Python 3.10+ wurde nicht gefunden.  /  Python 3.10+ was not found.
-choice /c JYN /n /m "Python 3.12 jetzt mit winget installieren? / Install Python 3.12 now with winget? [J/Y/N] "
-if errorlevel 3 goto :end
+rem set /p instead of "choice": choice beeps at every other key (13.11.2026)
+set "ANS="
+set /p "ANS=Python 3.12 jetzt mit winget installieren? / Install Python 3.12 now with winget? [J/Y/N], Enter: "
+if /i "%ANS%"=="J" goto :install
+if /i "%ANS%"=="Y" goto :install
+goto :end
+
+:install
 winget install -e --id Python.Python.3.12 --scope user --accept-package-agreements --accept-source-agreements
 echo.
 echo Fertig. Bitte dieses Fenster schliessen und start.bat noch einmal starten.
