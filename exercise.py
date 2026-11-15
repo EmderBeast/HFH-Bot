@@ -6,7 +6,7 @@ Was der Bot tippt (und sonst nichts):
     Knopf (weiterlaufen; der linke beendet den Lauf, und die übrigen Action Points verfallen), danach weg vom Ziel;
     auf Wunsch die Karten unten links
   - bei Karten: „Use“ nur für Karten aus der Liste unten (Energy Candy, Lightweight Runners, Sports Drink, Multiplier)
-  - „Story“: Antwort A oder B; „Event“: „Complete“; „Obtained“: „Tap to close“; „FINISH“: „Claim & Exit“
+  - „Story“: die Antwort mit Diamanten (sonst einer nützlichen Karte) laut Spieldaten (exercising_fragen.json); „Event“: „Complete“; „Obtained“: „Tap to close“; „FINISH“: „Claim & Exit“
   - „Shop“: immer „Don't Buy“. Der Bot kauft nie etwas, auch nicht mit Action Points.
 Vor jedem Tippen liest er die Stelle und bricht ab, wenn dort etwas wie Purchase, Gems, Diamonds, Recharge steht.
 
@@ -18,6 +18,8 @@ import os
 import random
 import re
 import time
+
+import difflib
 
 import cv2
 import numpy as np
@@ -278,6 +280,69 @@ def goal_buttons(boxes):
     return None
 
 
+# ---------------------------------------------------------------- Story-Fragen aus den Spieldaten
+# exercising_fragen.json: alle 48 Fragen (de/en) mit der Belohnung für A und B (aus treasureevent, 12.11.2026).
+# r = [Belohnung A, Menge A, Belohnung B, Menge B]; 108 = Diamanten, 100 = Gold, 7010000xx = Karten.
+DIA, GOLD = 108, 100
+ITEM_ORDER = [701000005, 701000007, 701000004, 701000006, 701000008, 701000009, 701000001]  # nützlichste zuerst
+_FRAGEN = None
+
+
+def fragen():
+    global _FRAGEN
+    if _FRAGEN is None:
+        try:
+            import json
+            with open(os.path.join(HERE, 'exercising_fragen.json'), encoding='utf-8') as f:
+                d = json.load(f)
+            _FRAGEN = []
+            for q in d['q']:
+                for lang in ('en', 'de'):
+                    if q.get(lang):
+                        _FRAGEN.append({'id': q['id'], 'r': q['r'], 'n': norm(q[lang][0]), 'a': q[lang][1],
+                                        'b': q[lang][2]})
+            _FRAGEN_ITEMS.update(d.get('items', {}))
+        except Exception:
+            _FRAGEN = []
+    return _FRAGEN
+
+
+_FRAGEN_ITEMS = {}
+
+
+def find_question(text):
+    """Die Frage aus den Spieldaten, die am besten zum gelesenen Text passt (None, wenn unsicher). Verglichen wird
+    ohne Leerzeichen, weil die Texterkennung sie oft weglässt („Asmallpuddleblocks...“)."""
+    have = norm(text)
+    if len(have) < 15:
+        return None
+    best, bp, second = None, 0.0, 0.0
+    for q in fragen():
+        sm = difflib.SequenceMatcher(None, have, q['n'], autojunk=False)
+        p = sm.ratio()
+        if p > bp:
+            best, bp, second = q, p, bp
+        elif p > second:
+            second = p
+    return best if best and bp >= 0.6 and bp - second >= 0.08 else None
+
+
+def reward_rank(item, amount):
+    """Je größer, desto lieber: Diamanten vor nützlichen Karten vor Gold."""
+    if item == DIA:
+        return 3_000_000 + amount
+    if item in ITEM_ORDER:
+        return 2_000_000 - ITEM_ORDER.index(item)
+    if item == GOLD:
+        return 1_000_000 + amount // 100
+    return 0
+
+
+def reward_name(item, amount):
+    it = _FRAGEN_ITEMS.get(str(item)) or {}
+    return f"{amount}× {it.get('en') or item}"
+
+
 def story_options(boxes):
     """Die beiden Antworten (A links, B rechts) unter einer Story-Frage."""
     st = [b for b in boxes if b.n.startswith('story')]
@@ -300,11 +365,11 @@ def story_options(boxes):
 # ---------------------------------------------------------------- Bot
 
 class Exerciser:
-    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None, way='einmal'):
+    def __init__(self, dev, reader, log=print, course=4, story='diamant', cards=True, runs=0, debug_dir=None, way='einmal'):
         self.dev, self.reader, self.log = dev, reader, log
         dev.reader = reader
         self.course = max(1, min(4, int(course or 4)))
-        self.story = story if story in ('a', 'b', 'zufall') else 'a'
+        self.story = story if story in ('diamant', 'a', 'b', 'zufall') else 'diamant'
         self.cards = cards
         # an Abzweigungen: einmal = erst zum Ziel, dort weiterlaufen, danach weg vom Ziel; meiden; ziel; zufall
         self.way = way if way in ('einmal', 'meiden', 'ziel', 'zufall') else 'einmal'
@@ -592,10 +657,25 @@ class Exerciser:
         if not opt:
             self.other += 1
             return
-        pick = self.story if self.story != 'zufall' else random.choice('ab')
-        b = opt[0] if pick == 'a' else opt[1]
         q = ' '.join(x.text for x in boxes if x.n.startswith('story') is False and opt[0].cy - 260 < x.cy < opt[0].cy - 60)
-        self.log(T('  Story: {q} → {a}', q=q[:90], a=b.text))
+        why = ''
+        if self.story == 'diamant':
+            fq = find_question(q)
+            if fq:
+                r = fq['r']
+                pick = 'a' if reward_rank(r[0], r[1]) >= reward_rank(r[2], r[3]) else 'b'
+                # A und B am Text erkennen (falls das Spiel sie einmal anders herum zeigt)
+                want = norm(fq[pick])
+                sa, sb = (difflib.SequenceMatcher(None, o.n, want).ratio() for o in opt)
+                b = opt[0] if sa >= sb else opt[1]
+                why = T(' (A: {a}, B: {b})', a=reward_name(r[0], r[1]), b=reward_name(r[2], r[3]))
+            else:
+                b = opt[0]
+                why = T(' (Frage nicht in den Spieldaten gefunden, nehme A)')
+        else:
+            pick = self.story if self.story != 'zufall' else random.choice('ab')
+            b = opt[0] if pick == 'a' else opt[1]
+        self.log(T('  Story: {q} → {a}{why}', q=q[:90], a=b.text, why=why))
         self.stats['story'] += 1
         self.tap(b.cx, b.cy, 'Antwort', wait=1.5)
 
@@ -615,7 +695,7 @@ class Exerciser:
             pass
         elif ('actionpoint' in nt and ('2' in nt or 'two' in nt or 'double' in nt or 'twice' in nt)) \
                 or any(w in nt for w in ('random', 'direction', 'dizzy', 'confus', 'cannot', 'cant', 'consum')):
-            self.heavy = 3                  # Hantel (2 AP je Wurf) oder Wirbel (zufällige Richtung): Jell-O hilft
+            self.heavy = 4                  # Hantel (4 Runden 2 AP je Wurf) oder Wirbel (zufällige Richtung): Jell-O hilft
         if not c:
             self.other += 1
             return
@@ -635,7 +715,7 @@ class Exerciser:
     # ------------------------------------------------------------ Lauf
     def run(self):
         self.log(T('Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}, Abzweigungen {way}.',
-                   course=COURSE_NAMES[self.course - 1], story=self.story.upper() if self.story != 'zufall' else T('zufällig'),
+                   course=COURSE_NAMES[self.course - 1], story={'diamant': T('nach Belohnung'), 'zufall': T('zufällig')}.get(self.story, self.story.upper()),
                    cards=T('ja') if self.cards else T('nein'), runs=self.runs or T('alle übrigen'),
                    way={'meiden': T('weg vom Ziel'), 'ziel': T('Richtung Ziel'),
                         'einmal': T('erst zum Ziel, dort weiter, dann weg')}.get(self.way, T('zufällig'))))

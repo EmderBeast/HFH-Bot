@@ -80,11 +80,11 @@ EXERCISING BOT (Free Time > Exercising)
 2. In the bot, type "e", choose the course (Enter = Marathon) and how many runs (Enter = all that
    "Exercising Left" still allows).
 3. It rolls (GO!), first heads for the finish flag at forks, takes the
-   right button on the goal field (keep going, so the Action Points are not lost) and then goes away from the goal, answers story questions (answer A, can be
-   changed in potbot.ini), closes events and rewards, and collects the reward with "Claim & Exit" at
+   right button on the goal field (keep going, so the Action Points are not lost) and then goes away from the goal, answers story questions with the answer
+   that gives diamonds according to the game data (else a useful card; file exercising_fragen.json), closes events and rewards, and collects the reward with "Claim & Exit" at
    the end. It stops at "Exercising Left: 0".
 At forks it reads the fields on every way (story and gift = diamonds, arrow = +1 Action Point; banana peel =
--1 Action Point, question mark = a card is lost, hand with sweat = Stamina Drain, dumbbell = every roll costs
+-1 Action Point, question mark = a card is lost, hand with sweat = Stamina Drain, dumbbell = for 4 rounds every roll costs
 2 Action Points, swirl = random direction) and works out with the possible
 rolls which way brings the most. Before the goal, the goal pulls harder the fewer Action Points are left. Cards:
 Lightweight Runners always; Sports Drink when good fields are only 4 to 6 fields away; Energy Candy with many bad
