@@ -154,9 +154,10 @@ def bond_title(text):
 
 
 def char_name_score(texts, cid):
-    """Wie gut gelesene Texte zu einem Charakter passen (für gleichnamige Bonds)."""
+    """Wie gut gelesene Texte zu einem Charakter passen (für gleichnamige Bonds). Zur Hälfte zählt, wie gut der ganze
+    Name passt (1.16): "TORU OIKAWA" steckt auch in "TORU OIKAWA (School Festival)", ist aber ein anderer Spieler."""
     full = norm(NAMES.get(cid, ''))
-    return max((partial(norm(t), full) for t in texts if len(norm(t)) >= 5), default=0.0)
+    return max(((partial(norm(t), full) + ratio(norm(t), full)) / 2 for t in texts if len(norm(t)) >= 5), default=0.0)
 
 
 # Kurzname einer Schule im Spiel -> Name in den Daten der Seite (gesehen: "SEIJOH's Senior Year Pillars" im Spiel,
@@ -174,18 +175,47 @@ def match_bond(name, kind=None, members=()):
             n = n.replace(short, full)
     pools = {'bonds': [('bonds', BONDS)], 'collections': [('collections', COLLS)]}.get(
         kind, [('collections', COLLS), ('bonds', BONDS)])
-    sc = sorted(((ratio(n, norm(b['name'])), k, bid) for k, pool in pools for bid, b in pool.items()),
-                key=lambda x: -x[0])
+    c = match_bond_all(n, pools, members)
+    return (c[0][0], c[0][1]) if c else None
+
+
+def match_bond_all(n, pools, members=()):
+    """Alle Bonds mit diesem Namen als [(Art, ID, Passung der Mitglieder)], der passendste zuerst (1.16). 30 Namen gibt es
+    zwei- oder dreimal (derselbe Bond mit einer anderen Karte eines Spielers, z. B. "A Bit Higher!" mit Oikawa und mit
+    Oikawa (School Festival))."""
+    def score(name):
+        m = norm(name)
+        r = ratio(n, m)
+        if r < 0.8 and len(m) >= 12 and partial(m, n) >= 0.92:
+            r = 0.8                                  # das Spiel hängt ein Wort an ("... Senior Year Pillars")
+        return r
+    sc = sorted(((score(b['name']), k, bid) for k, pool in pools for bid, b in pool.items()), key=lambda x: -x[0])
     if not sc or sc[0][0] < 0.8:
-        return None
+        return []
     top = [x for x in sc if x[0] >= sc[0][0] - 0.01]
-    if len(top) > 1 and members:
-        def fit(x):
-            ids = (BONDS if x[1] == 'bonds' else COLLS)[x[2]]['chars']
-            ids = [int(i) for i in (ids.keys() if isinstance(ids, dict) else ids)]
-            return sum(char_name_score(members, i) for i in ids) / max(1, len(ids))
-        top.sort(key=fit, reverse=True)
-    return top[0][1], top[0][2]
+
+    def fit(x):
+        if not members:
+            return 0.0
+        ids = (BONDS if x[1] == 'bonds' else COLLS)[x[2]]['chars']
+        ids = [int(i) for i in (ids.keys() if isinstance(ids, dict) else ids)]
+        return sum(char_name_score(members, i) for i in ids) / max(1, len(ids))
+    out = [(x[1], x[2], fit(x)) for x in top]
+    out.sort(key=lambda x: -x[2])
+    return out
+
+
+def bond_pools(kind):
+    return {'bonds': [('bonds', BONDS)], 'collections': [('collections', COLLS)]}.get(
+        kind, [('collections', COLLS), ('bonds', BONDS)])
+
+
+def bond_norm(name):
+    n = norm(name)
+    for short, full in BOND_ALIAS.items():
+        if short in n and full not in n:
+            n = n.replace(short, full)
+    return n
 
 
 def match_cheer(name):
@@ -2149,7 +2179,18 @@ class Scanner(Bot):
             if not info:
                 return 'end'
             name, lv, kind, members, line = info
-            r = match_bond(name, kind, members)
+            # 1.16: Gleichnamige Bonds (30 Namen gibt es zwei- oder dreimal) sind verschiedene Bonds. Bis 1.15 galt der
+            # zweite als "schon gesehen", und der Scan der Schule hörte dort auf: 57 von 142 Bonds gelesen (Scan vom
+            # 14.11.2026). Jetzt: der passendste nach den Mitgliedern; ist der schon gelesen und passt ein noch nicht
+            # gelesener fast genauso gut, ist es dieser. Erst wenn kein gleichnamiger mehr offen ist, ist die Runde herum.
+            cands = match_bond_all(bond_norm(name), bond_pools(kind), members) if len(norm(name)) >= 3 else []
+            r = None
+            for k, bid, f in cands:
+                if (k, bid) not in seen and f >= cands[0][2] - 0.08:
+                    r = (k, bid)
+                    break
+            if cands and r is None:
+                return 'seen'
             key = r if r else ('?', norm(name))
             if key in seen:
                 return 'seen'
