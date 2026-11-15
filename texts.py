@@ -484,6 +484,7 @@ EN = {
     '    (Karte: {err})': '    (map: {err})', ', Landung 1/2/3: {o}': ', landing 1/2/3: {o}',
     '  Steps Setter: {n} Schritte wären gut': '  Steps Setter: {n} steps would be good',
     '  Steps Setter: {n} Schritte gewählt': '  Steps Setter: {n} steps chosen',
+    '  Steps Setter: das Fenster „Step Selection“ kam nicht (Bildschirmfoto gespeichert).': '  Steps Setter: the “Step Selection” window did not come (screenshot saved).',
     '  Steps Setter: die Zahl {n} nicht gefunden (Bildschirmfoto gespeichert); es geht mit GO weiter.': '  Steps Setter: number {n} not found (screenshot saved); going on with GO.',
     '  Story: {q} → {a}{why}': '  Story: {q} → {a}{why}',
     ' (A: {a}, B: {b})': ' (A: {a}, B: {b})',
