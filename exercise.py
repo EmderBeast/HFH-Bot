@@ -1,0 +1,443 @@
+"""Exercising-Bot: spielt die Läufe in „Free Time → Exercising“ (Brettspiel mit Würfel, Story-Fragen, Shop und Karten).
+
+Was der Bot tippt (und sonst nichts):
+  - im Fenster „Exercising Courses“: „Continue“ oder „Enter“ beim gewählten Kurs, solange „Exercising Left“ über 0 ist
+  - auf dem Brett: „GO!“ (würfeln), an Abzweigungen einen der gelben Pfeile, auf Wunsch die Karten unten links
+  - bei Karten: „Use“ nur für Karten aus der Liste unten (Energy Candy, Lightweight Runners, Sports Drink, Multiplier)
+  - „Story“: Antwort A oder B; „Event“: „Complete“; „Obtained“: „Tap to close“; „FINISH“: „Claim & Exit“
+  - „Shop“: immer „Don't Buy“. Der Bot kauft nie etwas, auch nicht mit Action Points.
+Vor jedem Tippen liest er die Stelle und bricht ab, wenn dort etwas wie Purchase, Gems, Diamonds, Recharge steht.
+
+Aufgebaut nach dem Video „Exercising.mkv“ vom 12.11.2026 (Marathon, 20 Runden, 13 Action Points).
+"""
+from __future__ import annotations
+
+import os
+import random
+import re
+import time
+
+import cv2
+import numpy as np
+
+import layout as L
+from device import SafetyStop
+from texts import T
+from vision import REF_H, REF_W, find, norm
+
+# ---------------------------------------------------------------- Stellen (Referenz 1600 x 900, gemessen am Video)
+GO = (1462, 728)                    # „GO!“ in der Mitte der Scheibe unten rechts
+CARD_SLOTS = [(245, 790), (408, 790), (570, 790), (733, 790)]   # Karten unten links (nach „Storage“)
+CARD_BOX = 70                       # halbe Breite des Ausschnitts, mit dem der Bot eine Karte wiedererkennt
+BOARD = (200, 130, 1300, 780)       # Bereich, in dem die gelben Pfeile an Abzweigungen stehen
+STILL = (125, 120, 1200, 760)       # Bereich für „bewegt sich noch etwas?“
+COURSE_X = [315, 642, 969, 1294]    # „Enter“-Knöpfe der vier Kurse
+COURSE_NAMES = ['Sprint Training', 'Jogging', 'Distance Run', 'Marathon']
+
+# Karten, die der Bot benutzt (Name im Fenster, ohne Leerzeichen, klein). Alles andere lässt er liegen.
+GOOD_CARDS = {
+    'energycandy': 'Energy Candy (8 Schritte ohne Action Points)',
+    'lightweightrunners': 'Lightweight Runners (Züge kosten 2 Runden lang 1 AP weniger)',
+    'sportsdrink': 'Sports Drink (2 Runden doppelt so viele Schritte)',
+}
+GOOD_PARTS = ['multipl']            # Multiplier-Karte (mehr Belohnung am Ende), Name unbekannt
+
+# Wörter, die an einer Stelle, auf die der Bot tippt, nie stehen dürfen
+BAD_PARTS = ['purchas', 'recharg', 'refill', 'topup', 'diamond', 'gem', 'recruit', 'quickunequ', 'dismant', 'sell',
+             'exchang', 'store', 'pay', 'buy']
+OK_PARTS = ['dontbuy', 'donotbuy']  # „Don't Buy“ ist erlaubt
+
+
+def tap_text_ok(text: str) -> bool:
+    n = norm(text)
+    for ok in OK_PARTS:
+        n = n.replace(ok, '')
+    return not any(b in n for b in BAD_PARTS)
+
+
+# ---------------------------------------------------------------- Bild auswerten
+
+def yellow_arrows(img: np.ndarray) -> list[tuple[int, int]]:
+    """Die großen gelben Pfeile, die an einer Abzweigung um die Figur stehen. Gibt die Mitte jedes Pfeils
+    (Referenz-Koordinaten). Getestet am Video: nur an Abzweigungen, nie sonst."""
+    im = cv2.resize(img, (REF_W, REF_H), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    m = ((hsv[..., 0] >= 18) & (hsv[..., 0] <= 32) & (hsv[..., 1] >= 150) & (hsv[..., 2] >= 200)).astype(np.uint8)
+    x0, y0, x1, y1 = BOARD
+    mask = np.zeros_like(m)
+    mask[y0:y1, x0:x1] = m[y0:y1, x0:x1]
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    n, _, st, c = cv2.connectedComponentsWithStats(mask)
+    blobs = [(float(c[i][0]), float(c[i][1]), int(st[i, 4])) for i in range(1, n) if st[i, 4] > 280]
+    # ein Pfeil besteht aus zwei Streifen: Teile, die näher als 85 px beieinander liegen, zusammenfassen
+    groups: list[list] = []
+    for b in sorted(blobs, key=lambda b: -b[2]):
+        for g in groups:
+            if any((b[0] - o[0]) ** 2 + (b[1] - o[1]) ** 2 < 85 ** 2 for o in g):
+                g.append(b)
+                break
+        else:
+            groups.append([b])
+    out = []
+    for g in groups:
+        w = sum(b[2] for b in g)
+        if w < 500:
+            continue
+        out.append((int(sum(b[0] * b[2] for b in g) / w), int(sum(b[1] * b[2] for b in g) / w)))
+    return out
+
+
+def moving(a: np.ndarray, b: np.ndarray) -> float:
+    """Anteil (in %) der Bildpunkte im Brett, die sich zwischen zwei Bildern deutlich geändert haben."""
+    def g(img):
+        im = cv2.resize(img, (800, 450), interpolation=cv2.INTER_AREA)
+        x0, y0, x1, y1 = (v // 2 for v in STILL)
+        return cv2.cvtColor(im[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY).astype(np.int16)
+    return float((np.abs(g(a) - g(b)) > 25).mean() * 100)
+
+
+def classify(boxes) -> tuple[str, dict]:
+    """Welche Seite ist offen? Gibt (Name, Infos) zurück."""
+    ns = [b.n for b in boxes]
+    has = lambda w: any(w in n for n in ns)                            # noqa: E731
+    info: dict = {}
+    m = next((re.search(r'actionpoints(\d+|o)', n) for n in ns if 'actionpoints' in n), None)
+    if m:
+        info['ap'] = 0 if m.group(1) == 'o' else int(m.group(1))
+    m = next((re.search(r'round(\d+)', n) for n in ns if n.startswith('round')), None)
+    if m:
+        info['round'] = int(m.group(1))
+    if has('exercisingcourses'):
+        m = next((re.search(r'exercisingleft(\d+)(\d)$', n) for n in ns if 'exercisingleft' in n), None)
+        if m:
+            info['left'] = int(m.group(1))
+            info['max'] = int(m.group(2))
+        return 'courses', info
+    if find(boxes, 'Claim & Exit') or has('claimexit'):
+        return 'finish', info
+    if has('taptoclose'):
+        return 'obtained', info
+    if has('currentactionpoints') and (has('dontbuy') or has('purchase') or has('shop')):
+        return 'shop', info
+    if has('owned') and any(n == 'use' for n in ns):
+        return 'card', info
+    if any(n == 'story' or n.startswith('story') for n in ns):
+        return 'story', info
+    if any(n == 'complete' or n == 'event' for n in ns):
+        return 'event', info
+    if has('movesteps'):
+        return 'moving', info
+    if 'round' in info or has('currentstatus'):
+        return 'board', info
+    if has('freetime'):
+        return 'freetime', info
+    return 'other', info
+
+
+def story_options(boxes):
+    """Die beiden Antworten (A links, B rechts) unter einer Story-Frage."""
+    st = [b for b in boxes if b.n.startswith('story')]
+    if not st:
+        return None
+    top = st[0].cy
+    cand = [b for b in boxes if top + 150 < b.cy < top + 480 and b.n and 120 < b.cx < 1480 and len(b.n) >= 3
+            and not b.n.startswith('auto')]
+    if not cand:
+        return None
+    low = max(b.cy for b in cand)                         # die Antworten stehen unter dem Fragetext
+    row = [b for b in cand if abs(b.cy - low) < 25]
+    left = [b for b in row if b.cx < 800]
+    right = [b for b in row if b.cx >= 800]
+    if not left or not right:
+        return None
+    return min(left, key=lambda b: b.cx), max(right, key=lambda b: b.cx)
+
+
+# ---------------------------------------------------------------- Bot
+
+class Exerciser:
+    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None):
+        self.dev, self.reader, self.log = dev, reader, log
+        dev.reader = reader
+        self.course = max(1, min(4, int(course or 4)))
+        self.story = story if story in ('a', 'b', 'zufall') else 'a'
+        self.cards = cards
+        self.runs = runs                    # 0 = bis „Exercising Left“ 0 ist
+        self.debug_dir = debug_dir
+        self.done = 0
+        self.skip_cards: list[np.ndarray] = []   # Karten, die der Bot nicht benutzt (oder leere Plätze)
+        self.card_try = None                # (Platz, Ausschnitt) der Karte, die er gerade geöffnet hat
+        self.tried = set()                  # Plätze, die er in dieser Runde schon angesehen hat
+        self.round = None
+        self.go_at_zero = False
+        self.other = 0
+        self.stats = {'go': 0, 'story': 0, 'event': 0, 'shop': 0, 'karten': 0, 'abzweig': 0, 'items': 0}
+
+    # ------------------------------------------------------------ Hilfen
+    def snap(self):
+        return self.dev.screenshot()
+
+    def shot(self, name):
+        if not self.debug_dir:
+            return None
+        os.makedirs(self.debug_dir, exist_ok=True)
+        path = os.path.join(self.debug_dir, time.strftime('%H%M%S_') + name + '.png')
+        if self.dev.last is not None:
+            cv2.imwrite(path, self.dev.last)
+        return path
+
+    def crop(self, img, x, y, r=CARD_BOX):
+        h, w = img.shape[:2]
+        sx, sy = w / REF_W, h / REF_H
+        c = img[int((y - r) * sy):int((y + r) * sy), int((x - r) * sx):int((x + r) * sx)]
+        return cv2.resize(c, (2 * r, 2 * r), interpolation=cv2.INTER_AREA)
+
+    def same_card(self, a, b):
+        return float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean()) < 12
+
+    def tap(self, x, y, purpose, expect: str | None = None, wait=1.0):
+        """Tippt erst, nachdem die Stelle gelesen ist: dort darf nichts Verbotenes stehen; mit expect muss der Text
+        dort stehen."""
+        img = self.snap()
+        for (x0, y0, x1, y1) in L.DANGER_TOP:
+            if x0 <= x <= x1 and y0 <= y <= y1:
+                raise SafetyStop(T('Abgebrochen: „{purpose}“ läge auf einem gesperrten Knopf ({x}, {y}).',
+                                   purpose=purpose, x=round(x), y=round(y)))
+        near = self.reader.read(img, (x - 160, y - 45, x + 160, y + 45))
+        for b in near:
+            if b.x0 - 10 <= x <= b.x1 + 10 and b.y0 - 10 <= y <= b.y1 + 10 and not tap_text_ok(b.text):
+                raise SafetyStop(T('Abgebrochen: An der Stelle für „{purpose}“ steht „{text}“.', purpose=purpose, text=b.text))
+        if expect and not any(norm(expect) in b.n for b in near):
+            return False
+        self.dev.tap(x, y, purpose, wait=wait, check=False)
+        return True
+
+    def settle(self, timeout=6.0):
+        """Wartet, bis das Brett still steht (Figur läuft nicht mehr, Kamera fährt nicht mehr)."""
+        t0 = time.time()
+        a = self.snap()
+        calm = 0
+        while time.time() - t0 < timeout:
+            time.sleep(0.35)
+            b = self.snap()
+            calm = calm + 1 if moving(a, b) < 2.5 else 0
+            if calm >= 2:
+                return b
+            a = b
+        return a
+
+    # ------------------------------------------------------------ Seiten
+    def on_courses(self, boxes, info):
+        cont = [b for b in boxes if b.n.startswith('contin')]
+        if cont:
+            self.log(T('  Lauf läuft noch: „Continue“'))
+            self.tap(cont[0].cx, cont[0].cy, 'Continue', expect='contin', wait=2.5)
+            return True
+        left = info.get('left')
+        if left is None:
+            self.log(T('  „Exercising Left“ nicht lesbar; ich höre auf.'))
+            return False
+        if left <= 0:
+            self.log(T('  Exercising Left: 0. Für heute fertig.'))
+            return False
+        if self.runs and self.done >= self.runs:
+            self.log(T('  {n} Läufe geschafft, wie gewünscht.', n=self.done))
+            return False
+        enter = sorted([b for b in boxes if b.n == 'enter'], key=lambda b: b.cx)
+        if len(enter) < 4:
+            self.log(T('  Die „Enter“-Knöpfe sind nicht alle zu sehen; ich höre auf.'))
+            self.shot('kurse')
+            return False
+        b = enter[self.course - 1]
+        # grau = gesperrt (dann läuft ein anderer Kurs, und es gäbe „Continue“)
+        img = self.dev.last
+        h, w = img.shape[:2]
+        px = img[int((b.cy) * h / REF_H), int((b.x0 - 20) * w / REF_W)]
+        if int(px[0]) - int(px[2]) < 40:
+            self.log(T('  „Enter“ bei {course} ist grau; ich höre auf.', course=COURSE_NAMES[self.course - 1]))
+            self.shot('kurse_grau')
+            return False
+        self.log(T('Starte {course} (Exercising Left: {left}/{max}).', course=COURSE_NAMES[self.course - 1], left=left,
+                   max=info.get('max', '?')))
+        self.tap(b.cx, b.cy, 'Enter', expect='enter', wait=3.0)
+        self.round = None
+        self.skip_cards = []
+        self.go_at_zero = False
+        return True
+
+    def on_board(self, img, info):
+        if info.get('round') != self.round:
+            self.round = info.get('round')
+            self.card_try = None
+            self.tried = set()
+        img = self.settle()
+        if classify(self.reader.read(img))[0] != 'board':
+            return                          # inzwischen ist ein Fenster aufgegangen (Story, Shop ...)
+        arrows = yellow_arrows(img)
+        if arrows:
+            x, y = random.choice(arrows)
+            self.log(T('  Abzweigung: {n} Wege, nehme ({x}, {y})', n=len(arrows), x=x, y=y))
+            self.stats['abzweig'] += 1
+            self.tap(x, y, 'Weg wählen', wait=1.2)
+            return
+        if self.cards and self.try_card(img):
+            return
+        if info.get('ap') == 0 and self.go_at_zero:
+            # mit 0 Action Points geht noch ein letzter Zug; danach kommt FINISH. Nicht noch einmal würfeln.
+            self.other += 1
+            time.sleep(1.0)
+            return
+        if info.get('ap') == 0:
+            self.go_at_zero = True
+        self.stats['go'] += 1
+        self.log(T('  Runde {r}, Action Points {ap}: GO!', r=info.get('round', '?'), ap=info.get('ap', '?')))
+        self.tap(*GO, 'GO', wait=2.0)
+
+    def try_card(self, img) -> bool:
+        """Öffnet die nächste Karte, die der Bot in dieser Runde noch nicht angesehen hat."""
+        if self.card_try is not None:
+            # eben getippt, aber kein Fenster: der Platz ist leer, die Plätze rechts davon auch
+            self.tried.update(range(self.card_try[0], len(CARD_SLOTS)))
+            self.card_try = None
+        for i, (x, y) in enumerate(CARD_SLOTS):
+            if i in self.tried:
+                continue
+            self.tried.add(i)
+            c = self.crop(img, x, y)
+            if any(self.same_card(c, s) for s in self.skip_cards):
+                continue
+            self.card_try = (i, c)
+            self.tap(x, y, 'Karte ansehen', wait=1.0)
+            return True
+        return False
+
+    def on_card(self, boxes):
+        title = ''
+        own = [b for b in boxes if b.n.startswith('owned')]
+        if own:
+            above = [b for b in boxes if b.cy < own[0].cy - 10 and abs(b.x0 - own[0].x0) < 40]
+            if above:
+                title = max(above, key=lambda b: b.cy).text
+        text = ' '.join(b.text for b in boxes if own and own[0].cy - 60 < b.cy < own[0].cy + 120)
+        n = norm(title)
+        good = n in GOOD_CARDS or any(p in norm(text) for p in GOOD_PARTS)
+        slot = self.card_try[0] if self.card_try else None
+        use = next((b for b in boxes if b.n == 'use'), None)
+        if good and use:
+            self.log(T('  Karte „{name}“: benutzen', name=title))
+            self.stats['karten'] += 1
+            self.tap(use.cx, use.cy, 'Use', expect='use', wait=1.5)
+            self.card_try = None
+            self.tried = set()              # die Karten rücken nach links
+            return
+        self.log(T('  Karte „{name}“: bleibt liegen', name=title or '?'))
+        if self.card_try:
+            self.skip_cards.append(self.card_try[1])
+        self.card_try = None
+        # schließen: dieselbe Karte noch einmal antippen, sonst daneben aufs Brett
+        if slot is not None:
+            self.tap(*CARD_SLOTS[slot], 'Karten-Fenster schließen', wait=0.8)
+        if classify(self.reader.read(self.snap()))[0] == 'card':
+            self.tap(800, 690, 'Karten-Fenster schließen', wait=0.8)
+
+    def on_story(self, boxes):
+        opt = story_options(boxes)
+        if not opt:
+            self.other += 1
+            return
+        pick = self.story if self.story != 'zufall' else random.choice('ab')
+        b = opt[0] if pick == 'a' else opt[1]
+        q = ' '.join(x.text for x in boxes if x.n.startswith('story') is False and opt[0].cy - 260 < x.cy < opt[0].cy - 60)
+        self.log(T('  Story: {q} → {a}', q=q[:90], a=b.text))
+        self.stats['story'] += 1
+        self.tap(b.cx, b.cy, 'Antwort', wait=1.5)
+
+    def on_event(self, boxes):
+        ev = next((b for b in boxes if b.n == 'event'), None)
+        c = [b for b in boxes if b.n.startswith('complet')]
+        if not c and ev:
+            # die Texterkennung liest den Knopf manchmal falsch („ComNete“): der unterste Text in der Mitte
+            c = [b for b in boxes if b.cy > ev.cy + 150 and 650 < b.cx < 950 and b.cy < 840 and not b.n.startswith('auto')]
+            c = sorted(c, key=lambda b: -b.cy)[:1]
+        txt = ' '.join(b.text for b in boxes if ev and ev.cy + 20 < b.cy < ev.cy + 260 and b not in c)
+        self.log(T('  Event: {t}', t=txt[:100]))
+        if not c:
+            self.other += 1
+            return
+        self.stats['event'] += 1
+        self.tap(c[0].cx, c[0].cy, 'Complete', wait=1.5)
+
+    def on_shop(self, boxes):
+        d = [b for b in boxes if 'dontbuy' in b.n or 'donotbuy' in b.n]
+        if not d:
+            # ein Teil ist ausgewählt („Purchase“): der Bot wählt nie etwas aus. Abbrechen statt raten.
+            self.shot('shop')
+            raise SafetyStop(T('Im Shop ist etwas ausgewählt („Purchase“). Bitte selbst „Don\'t Buy“ wählen und neu starten.'))
+        self.stats['shop'] += 1
+        self.log(T('  Shop: Don\'t Buy'))
+        self.tap(d[0].cx, d[0].cy, "Don't Buy", expect='buy', wait=1.2)
+
+    # ------------------------------------------------------------ Lauf
+    def run(self):
+        self.log(T('Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}.',
+                   course=COURSE_NAMES[self.course - 1], story=self.story.upper() if self.story != 'zufall' else T('zufällig'),
+                   cards=T('ja') if self.cards else T('nein'), runs=self.runs or T('alle übrigen')))
+        last_state = None
+        while True:
+            img = self.snap()
+            boxes = self.reader.read(img)
+            state, info = classify(boxes)
+            prev = last_state
+            if state != last_state and state not in ('board', 'moving'):
+                self.other = 0
+            last_state = state
+            if state == 'courses':
+                if not self.on_courses(boxes, info):
+                    break
+            elif state == 'finish':
+                if prev != 'finish':
+                    self.done += 1
+                self.log(T('FINISH: Lauf {n} geschafft. „Claim & Exit“', n=self.done))
+                self.tap(*next(((b.cx, b.cy) for b in boxes if 'claim' in b.n), (800, 814)), 'Claim & Exit',
+                         expect='claim', wait=3.0)
+            elif state == 'obtained':
+                self.stats['items'] += 1
+                b = next(b for b in boxes if 'taptoclose' in b.n)
+                self.tap(b.cx, b.cy, 'Tap to close', wait=1.0)
+            elif state == 'shop':
+                self.on_shop(boxes)
+            elif state == 'card':
+                self.on_card(boxes)
+            elif state == 'story':
+                self.on_story(boxes)
+            elif state == 'event':
+                self.on_event(boxes)
+            elif state == 'moving':
+                time.sleep(0.8)
+            elif state == 'board':
+                if not (info.get('ap') == 0 and self.go_at_zero):
+                    self.other = 0
+                self.on_board(img, info)
+            elif state == 'freetime':
+                ex = [b for b in boxes if b.n.startswith('exercising')]
+                if ex:
+                    self.tap(ex[0].cx, ex[0].cy, 'Exercising', expect='exercising', wait=2.5)
+                else:
+                    self.other += 1
+                    time.sleep(1.0)
+            else:
+                bad = [b.text for b in boxes if not tap_text_ok(b.text)]
+                if bad:
+                    self.shot('fenster_mit_kauf')
+                    raise SafetyStop(T('Ein Fenster zum Kaufen ist offen („{text}“). Ich tippe dort nichts.', text=bad[0]))
+                self.other += 1
+                time.sleep(1.0)
+            if self.other >= 15:
+                path = self.shot('unbekannt')
+                self.log(T('Diese Seite kenne ich nicht (Bildschirmfoto: {path}). Ich höre auf.', path=path))
+                break
+        s = self.stats
+        self.log(T('Fertig: {n} Läufe. GO {go}×, Abzweigungen {ab}, Story {st}, Events {ev}, Shop {sh}, Karten benutzt {k}, '
+                   'Belohnungen {it}.', n=self.done, go=s['go'], ab=s['abzweig'], st=s['story'], ev=s['event'], sh=s['shop'],
+                   k=s['karten'], it=s['items']))
+        return self.done
