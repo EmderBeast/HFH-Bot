@@ -176,6 +176,12 @@ def goal_dir(img):
     return None
 
 
+def near_feet(arrows, spot):
+    """Nur Pfeile um das Feld der Figur. Die gelben Sterne über dem Kopf (Benommen/Wirbel) sind keine Abzweigung
+    (Lauf vom 15.11.2026: der Bot tippte immer wieder auf die Sterne statt zu würfeln)."""
+    return [a for a in arrows if abs(a[1] - spot[1]) < 120 and abs(a[0] - spot[0]) < 240]
+
+
 def merge_arrows(lists):
     """Pfeile aus mehreren Bildern zusammenlegen (sie pulsieren, nicht jeder ist auf jedem Bild zu sehen)."""
     out = []
@@ -584,14 +590,14 @@ class Exerciser:
             self.survey()
             img = self.settle()
             self.see_map(img)
-        arrows = yellow_arrows(img)
+        arrows = near_feet(yellow_arrows(img), player_spot(img))
         if arrows:
             # die Pfeile pulsieren und die Zielanzeige blinkt: ein paar Bilder ansehen
             lists, goal = [arrows], goal_dir(img) if self.to_goal else None
             for _ in range(4):
                 time.sleep(0.25)
                 im2 = self.snap()
-                lists.append(yellow_arrows(im2))
+                lists.append(near_feet(yellow_arrows(im2), player_spot(im2)))
                 if self.to_goal and not goal:
                     goal = goal_dir(im2)
             arrows = merge_arrows(lists)
