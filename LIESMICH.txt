@@ -75,6 +75,21 @@ Von den Coaches liest er alle ab Stufe 3 (mit Positional Advantages); von Coache
 Stufe 1 oder 2 hast, eins.
 
 
+EXERCISING-BOT (Free Time > Exercising)
+---------------------------------------
+1. Im Spiel: Free Time > Exercising. Das Fenster "Exercising Courses" ist offen (oder ein Lauf,
+   der schon läuft).
+2. Im Bot "e" eingeben, den Kurs wählen (Enter = Marathon) und wie viele Läufe (Enter = alle, die
+   "Exercising Left" noch erlaubt).
+3. Er würfelt (GO!), nimmt an Abzweigungen einen der gelben Pfeile, beantwortet Story-Fragen
+   (Antwort A, einstellbar in potbot.ini), schließt Events und Belohnungen und holt am Ende mit
+   "Claim & Exit" die Belohnung ab. Bei "Exercising Left: 0" hört er auf.
+Karten benutzt er nur, wenn sie nur helfen: Energy Candy, Lightweight Runners, Sports Drink und
+eine Multiplier-Karte. Reverse, Hitchhiking, Vitamin C Jell-O und andere lässt er liegen.
+Im Shop wählt er immer "Don't Buy". Er kauft nichts, auch nicht mit Action Points.
+Einstellungen in potbot.ini: exercising_kurs (1 bis 4), exercising_story (a, b oder zufall),
+exercising_karten (ja oder nein).
+
 WAS ER BEIM ANZIEHEN MACHT
 --------------------------
 - Er geht mit den Pfeilen durch deine Spieler und liest bei den Spielern der Aufstellung jedes Teil.
@@ -204,6 +219,10 @@ NEU IN 1.14 (11.11.2026)
 - Spieler suchen: Über doppelte Karten tippt der Bot mit den Pfeilen nicht mehr hinweg (bei 1385 Karten dauerte das
   über eine Stunde). Einen Spieler, den die Pfeile nicht erreichen, sucht er jetzt in "Manage Players": Er liest die
   Namensstreifen auf den Kacheln, tippt nur passende an und öffnet "Player Potential" direkt bei diesem Spieler.
+
+NEU IN 1.19 (15.11.2026)
+- Neu: Exercising-Bot (Menü "e"). Spielt die Läufe in Free Time > Exercising: würfeln, Abzweigungen, Story-Fragen,
+  Events, hilfreiche Karten, "Claim & Exit". Im Shop immer "Don't Buy". Siehe "EXERCISING-BOT" oben.
 
 NEU IN 1.18 (15.11.2026)
 - Account-Scan, Bonds: Er liest den Collection Value deiner Player Gallery mit (Gallery -> Player -> Gallery

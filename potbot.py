@@ -28,7 +28,7 @@ LOADOUTS = os.path.join(HERE, 'loadouts')
 LOGS = os.path.join(HERE, 'logs')
 SCANS = os.path.join(HERE, 'scans')
 OLD_FOLDERS = {'aufstellungen': LOADOUTS, 'protokolle': LOGS}     # Namen der ersten Version (1.0)
-VERSION = '1.18 (15.11.2026)'
+VERSION = '1.19 (15.11.2026)'
 
 
 class Log:
@@ -49,7 +49,10 @@ def config():
     return {'adb': s.get('adb') or None, 'serial': s.get('geraet') or s.get('device') or None,
             'max': int(s.get('max_spieler') or s.get('max_players') or 1000),
             'lang': (s.get('language') or '').strip().lower(), 'tempo': s.get('tempo') or '',
-            'min_level': max(2, min(70, int(s.get('min_level') or 2))) if str(s.get('min_level') or '2').strip().isdigit() else 2}
+            'min_level': max(2, min(70, int(s.get('min_level') or 2))) if str(s.get('min_level') or '2').strip().isdigit() else 2,
+            'ex_course': (s.get('exercising_kurs') or s.get('exercising_course') or '4').strip(),
+            'ex_story': (s.get('exercising_story') or 'a').strip().lower(),
+            'ex_cards': (s.get('exercising_karten') or s.get('exercising_cards') or 'ja').strip().lower()}
 
 
 def save_lang(lang):
@@ -525,6 +528,51 @@ def run_scan(parts, rarities=None, base=None, lv1=False):
     log(T('Protokoll: {path}', path=log.f.name))
 
 
+def exercise_menu():
+    from exercise import COURSE_NAMES
+    cfg = config()
+    print()
+    print(T('Exercising-Bot: spielt die Läufe in „Free Time → Exercising“ (würfeln, Abzweigungen, Story, Events, Karten).'))
+    print(T('Er kauft nichts: im Shop immer „Don\'t Buy“. Er benutzt nur Karten, die nichts kosten und nur helfen.'))
+    c = cfg['ex_course'] if cfg['ex_course'] in ('1', '2', '3', '4') else '4'
+    print('  ' + '   '.join(f'{i} {n}' for i, n in enumerate(COURSE_NAMES, 1)))
+    a = ask(T('Welcher Kurs? Enter = {n} ({name}): ', n=c, name=COURSE_NAMES[int(c) - 1]))
+    course = int(a) if a in ('1', '2', '3', '4') else int(c)
+    a = ask(T('Wie viele Läufe? Enter = alle, die „Exercising Left“ noch erlaubt: '))
+    runs = int(a) if a.isdigit() else 0
+    story = cfg['ex_story'] if cfg['ex_story'] in ('a', 'b') else ('zufall' if cfg['ex_story'].startswith(('z', 'r')) else 'a')
+    cards = not cfg['ex_cards'].startswith('n')
+    print()
+    print(T('Vorbereitung im Spiel: „Free Time“ → „Exercising“ öffnen (das Fenster „Exercising Courses“) oder einen Lauf, der schon läuft.'))
+    print(T('Während des Laufs bitte nichts im Emulator anklicken. Abbrechen mit Strg+C.'))
+    if not yes(ask(T('Los? (j/n) '))):
+        return
+    stamp = time.strftime('%Y-%m-%d_%H%M%S')
+    log = Log(os.path.join(LOGS, f'{stamp}_exercising.txt'))
+    from bot import BotError
+    from device import DeviceError, SafetyStop
+    from exercise import Exerciser
+    log(T('HFH-Bot {version} · Exercising', version=VERSION))
+    ex = None
+    try:
+        dev, reader, cfg = connect(log)
+        ex = Exerciser(dev, reader, log, course=course, story=story, cards=cards, runs=runs,
+                       debug_dir=os.path.join(LOGS, 'screenshots', stamp))
+        ex.run()
+    except KeyboardInterrupt:
+        log(T('Abgebrochen (Strg+C).'))
+    except SafetyStop as e:
+        log(T('SICHERHEITS-STOPP: {err}', err=e))
+        if ex:
+            ex.shot('sicherheits_stopp')
+    except (BotError, DeviceError) as e:
+        log(T('Gestoppt: {err}', err=e))
+    except Exception:
+        log(T('Unerwarteter Fehler:'))
+        log(traceback.format_exc())
+    log(T('Protokoll: {path}', path=log.f.name))
+
+
 def menu():
     migrate_folders()
     choose_lang()
@@ -551,6 +599,7 @@ def menu():
         print(T('  {k}       Aufstellung löschen', k=keys['delete']))
         print(T('  t       Verbindung testen: zeigt den offenen Spieler und liest seine Teile'))
         print(T('  {k}       Account scannen: Spieler, Potentials, Memories, Bonds, Cheers, Coaches für den Simulator', k=keys['scan']))
+        print(T('  e       Exercising-Bot: spielt die Läufe in „Free Time → Exercising“'))
         print(T('  {k}       Language / Sprache: English', k=keys['lang']))
         print(T('  q       Beenden'))
         c = ask('> ').lower()
@@ -561,6 +610,8 @@ def menu():
                 scan_menu()
             elif c == 'n':
                 new_loadout()
+            elif c == 'e':
+                exercise_menu()
             elif c == 't':
                 test_connection()
             elif c == keys['lang']:

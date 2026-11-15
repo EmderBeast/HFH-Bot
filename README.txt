@@ -73,6 +73,21 @@ Of the coaches it reads every one from level 3 up (with Positional Advantages); 
 have at level 1 or 2, one.
 
 
+EXERCISING BOT (Free Time > Exercising)
+---------------------------------------
+1. In the game: Free Time > Exercising. The "Exercising Courses" window is open (or a run that is
+   already going).
+2. In the bot, type "e", choose the course (Enter = Marathon) and how many runs (Enter = all that
+   "Exercising Left" still allows).
+3. It rolls (GO!), takes one of the yellow arrows at forks, answers story questions (answer A, can be
+   changed in potbot.ini), closes events and rewards, and collects the reward with "Claim & Exit" at
+   the end. It stops at "Exercising Left: 0".
+It only uses cards that only help: Energy Candy, Lightweight Runners, Sports Drink and a Multiplier
+card. It leaves Reverse, Hitchhiking, Vitamin C Jell-O and others.
+In the shop it always picks "Don't Buy". It buys nothing, not even with Action Points.
+Settings in potbot.ini: exercising_kurs (1 to 4), exercising_story (a, b or zufall = random),
+exercising_karten (ja = yes or nein = no).
+
 WHAT IT DOES WHEN EQUIPPING
 ---------------------------
 - It goes through your players with the arrows and reads every piece of the loadout's players.
@@ -202,6 +217,10 @@ NEW IN 1.14 (11.11.2026)
 - Finding players: the bot no longer taps past duplicate cards with the arrows (with 1385 cards that took over an
   hour). A player the arrows do not reach is now looked up in "Manage Players": the bot reads the name strips on the
   tiles, taps only matching ones and opens "Player Potential" directly at that player.
+
+NEW IN 1.19 (15.11.2026)
+- New: Exercising bot (menu "e"). Plays the runs in Free Time > Exercising: rolling, forks, story questions,
+  events, helpful cards, "Claim & Exit". Always "Don't Buy" in the shop. See "EXERCISING BOT" above.
 
 NEW IN 1.18 (15.11.2026)
 - Account scan, bonds: it also reads the Collection Value of your Player Gallery (Gallery -> Player -> Gallery
