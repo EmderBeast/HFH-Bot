@@ -51,7 +51,7 @@ def config():
             'lang': (s.get('language') or '').strip().lower(), 'tempo': s.get('tempo') or '',
             'min_level': max(2, min(70, int(s.get('min_level') or 2))) if str(s.get('min_level') or '2').strip().isdigit() else 2,
             'ex_course': (s.get('exercising_kurs') or s.get('exercising_course') or '4').strip(),
-            'ex_story': (s.get('exercising_story') or 'a').strip().lower(),
+            'ex_story': (s.get('exercising_story') or 'diamant').strip().lower(),
             'ex_cards': (s.get('exercising_karten') or s.get('exercising_cards') or 'ja').strip().lower(),
             'ex_goal': (s.get('exercising_ziel') or s.get('exercising_goal') or 'einmal').strip().lower()}
 
@@ -541,7 +541,8 @@ def exercise_menu():
     course = int(a) if a in ('1', '2', '3', '4') else int(c)
     a = ask(T('Wie viele Läufe? Enter = alle, die „Exercising Left“ noch erlaubt: '))
     runs = int(a) if a.isdigit() else 0
-    story = cfg['ex_story'] if cfg['ex_story'] in ('a', 'b') else ('zufall' if cfg['ex_story'].startswith(('z', 'r')) else 'a')
+    st = cfg['ex_story']
+    story = st if st in ('a', 'b') else 'zufall' if st.startswith(('z', 'r')) else 'diamant'
     cards = not cfg['ex_cards'].startswith('n')
     g = cfg['ex_goal']
     way = ('meiden' if g.startswith(('m', 'av')) else 'ziel' if g.startswith(('hin', 'zi', 'go')) else

@@ -30,12 +30,12 @@ VALUE = {
     'frage': -2.0,          # nimmt eine zufällige Karte aus dem Inventar und löscht sie (Nutzer, 15.11.2026)
     'shop': 0.0,
     'pfeil': 4.0,           # +1 Action Point (Nutzer, 15.11.2026)
-    'hantel': -6.0,         # jeder Wurf kostet 2 statt 1 Action Point (Nutzer, 15.11.2026)
-    'wirbel': -3.0,         # die Figur läuft in zufällige Richtungen, man kann nicht mehr wählen (Nutzer, 15.11.2026)
+    'hantel': -12.0,        # 4 Runden lang kostet jeder Wurf 2 statt 1 Action Point (Spieldaten, Nutzer)
+    'wirbel': -2.0,         # 3 Runden lang zu 30 % eine zufällige Richtung (Spieldaten)
     'leer': 0.0,
     'start': 0.0,
     'ziel': 20.0,           # FINISH: einmal 20 Diamanten (danach 0)
-    'unbekannt': -3.0,      # Symbol, das der Bot nicht kennt (z. B. das Hütchen: 4 oder 8 Action Points weg)
+    'unbekannt': -6.0,      # Symbol, das der Bot nicht kennt (z. B. das Hütchen: -5 Action Points laut Spieldaten)
     'banane': -4.0,         # kostet einen Action Point
     'schweiss': -6.0,       # Stamina Drain vor dem Ziel; nach dem Ziel 0
 }

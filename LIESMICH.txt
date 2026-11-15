@@ -83,10 +83,10 @@ EXERCISING-BOT (Free Time > Exercising)
    "Exercising Left" noch erlaubt).
 3. Er würfelt (GO!), geht an Abzweigungen erst Richtung Zielfahne, nimmt am Zielfeld
    den rechten Knopf (weiterlaufen, damit die Action Points nicht verfallen) und geht danach weg vom Ziel, beantwortet Story-Fragen
-   (Antwort A, einstellbar in potbot.ini), schließt Events und Belohnungen und holt am Ende mit
+   mit der Antwort, die laut Spieldaten Diamanten gibt (sonst eine nützliche Karte; Datei exercising_fragen.json), schließt Events und Belohnungen und holt am Ende mit
    "Claim & Exit" die Belohnung ab. Bei "Exercising Left: 0" hört er auf.
 An Abzweigungen liest er die Felder auf jedem Weg (Story und Geschenk = Diamanten, Pfeil = +1 Action Point;
-Bananenschale = -1 Action Point, Fragezeichen = Karte weg, Hand mit Schweiß = Stamina Drain, Hantel = jeder Wurf kostet
+Bananenschale = -1 Action Point, Fragezeichen = Karte weg, Hand mit Schweiß = Stamina Drain, Hantel = 4 Runden lang kostet jeder Wurf
 2 Action Points, Wirbel = zufällige Richtung) und rechnet mit
 den möglichen Würfen aus, welcher Weg am meisten bringt. Vor dem Ziel zieht ihn das Ziel umso stärker an, je
 weniger Action Points übrig sind. Karten: Lightweight Runners immer; Sports Drink, wenn gute Felder erst 4 bis 6
