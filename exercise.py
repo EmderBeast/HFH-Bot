@@ -383,6 +383,7 @@ class Exerciser:
         self.skip_cards: list[np.ndarray] = []   # Karten, die der Bot nicht benutzt (oder leere Plätze)
         self.card_try = None                # (Platz, Ausschnitt) der Karte, die er gerade geöffnet hat
         self.tried = set()                  # Plätze, die er in dieser Runde schon angesehen hat
+        self.card_looks = 0                 # so oft hat er in dieser Runde eine Karte geöffnet
         self.round_skip = []                # Karten, die er nur in dieser Runde nicht will (Sports Drink, Jell-O)
         self.plan_round = None
         self.want_double = False
@@ -497,8 +498,12 @@ class Exerciser:
         return True
 
     def on_board(self, img, info):
-        if info.get('round') != self.round:
-            self.round = info.get('round')
+        # neue Runde nur bei einer gelesenen, anderen Zahl (sonst sah der Bot bei jedem unlesbaren „Round“ eine neue
+        # Runde und sah sich die Karten immer wieder an, ohne zu würfeln: Lauf vom 15.11.2026)
+        r = info.get('round')
+        if r is not None and r != self.round:
+            self.round = r
+            self.card_looks = 0
             self.card_try = None
             self.tried = set()
             self.round_skip = []
@@ -652,7 +657,9 @@ class Exerciser:
         return ap is not None and ap <= 1
 
     def try_card(self, img) -> bool:
-        """Öffnet die nächste Karte, die der Bot in dieser Runde noch nicht angesehen hat."""
+        """Öffnet die nächste Karte, die der Bot in dieser Runde noch nicht angesehen hat (höchstens 6 je Runde)."""
+        if self.card_looks >= 6:
+            return False
         if self.card_try is not None:
             # eben getippt, aber kein Fenster: der Platz ist leer, die Plätze rechts davon auch
             self.tried.update(range(self.card_try[0], len(CARD_SLOTS)))
@@ -665,6 +672,7 @@ class Exerciser:
             if any(self.same_card(c, s) for s in self.skip_cards + self.round_skip):
                 continue
             self.card_try = (i, c)
+            self.card_looks += 1
             self.tap(x, y, 'Karte ansehen', wait=1.0)
             return True
         return False
