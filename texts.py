@@ -478,7 +478,7 @@ EN = {
     'Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}, Abzweigungen {way}.': 'Exercising bot: course {course}, story answer {story}, cards {cards}, runs {runs}, forks {way}.',
     'Richtung Ziel': 'towards the goal', ', von vorhin': ', from before',
     '  Abzweigung: {n} Wege, nehme den {how} (Ziel bei {deg}°, {src})': '  Fork: {n} ways, taking the one {how} (goal at {deg}°, {src})',
-    'weg vom Ziel': 'away from the goal', '  Hinweis „{t}“ weggetippt': '  Tip “{t}” closed', 'nach Belohnung': 'by reward',
+    'weg vom Ziel': 'away from the goal', '  Kein schlechter Effekt mehr: Vitamin C Jell-O nicht benutzen, Fenster schließen': '  No bad effect any more: not using Vitamin C Jell-O, closing the window', '  Hinweis „{t}“ weggetippt': '  Tip “{t}” closed', 'nach Belohnung': 'by reward',
     '  Am Ziel angekommen.': '  Reached the goal.', '  Strecke erkannt: {name}': '  Course recognised: {name}',
     ', Ziel {g} ({n} Felder)': ', goal {g} ({n} fields)', '    Karte: Feld {pos}{d}, {k} Symbole bekannt': '    Map: field {pos}{d}, {k} symbols known',
     '    (Karte: {err})': '    (map: {err})', ', Landung 1/2/3: {o}': ', landing 1/2/3: {o}',
