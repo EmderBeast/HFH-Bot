@@ -232,6 +232,8 @@ def classify(boxes) -> tuple[str, dict]:
         return 'obtained', info
     if has('stepselection') or has('movementwillbegin'):
         return 'steps', info
+    if any(n in ('gotit', 'gotit!') for n in ns) or has('goaltips'):
+        return 'tips', info                 # Hinweis am Anfang eines Laufs („Goal Tips“ → „Got it“)
     if has('currentactionpoints') and (has('dontbuy') or has('purchase') or has('shop')):
         return 'shop', info
     if has('owned') and any(n == 'use' for n in ns):
@@ -939,6 +941,14 @@ class Exerciser:
                 self.on_story(boxes)
             elif state == 'goal':
                 self.on_goal(boxes)
+            elif state == 'tips':
+                b = next((b for b in boxes if b.n.startswith('gotit')), None)
+                if b:
+                    self.log(T('  Hinweis „{t}“ weggetippt', t='Goal Tips'))
+                    self.tap(b.cx, b.cy, 'Got it', expect='gotit', wait=1.5)
+                else:
+                    self.other += 1
+                    time.sleep(1.0)
             elif state == 'steps':
                 n = self.want_steps
                 if not n and self.map_ok():
