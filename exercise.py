@@ -784,6 +784,11 @@ class Exerciser:
     def on_story(self, boxes):
         opt = story_options(boxes)
         if not opt:
+            # Ergebnis der Story-Frage (Frage, Antworttext und „Complete“): weiter mit „Complete“ (15.11.2026)
+            c = [b for b in boxes if b.n.startswith('complet') or b.n in ('comnete', 'compete')]
+            if c:
+                self.tap(c[0].cx, c[0].cy, 'Complete', wait=1.5)
+                return
             self.other += 1
             return
         q = ' '.join(x.text for x in boxes if x.n.startswith('story') is False and opt[0].cy - 260 < x.cy < opt[0].cy - 60)
