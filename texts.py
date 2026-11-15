@@ -44,7 +44,7 @@ PURPOSE_EN = {
     'Reiter Memory': 'Memory tab', 'Coach ansehen': 'look at a coach', 'Coach auswählen': 'select a coach',
     # Exercising
     'Weg wählen': 'choose the way', 'Karte ansehen': 'look at a card', 'Karten-Fenster schließen': 'close the card window',
-    'Antwort': 'answer',
+    'Antwort': 'answer', 'Weiterlaufen': 'keep going',
 }
 PURPOSE_RX = [(re.compile(r'^Platz (\w+) ansehen$'), 'look at slot {0}'),
               (re.compile(r'^Platz (\w+) prüfen$'), 'check slot {0}'),
@@ -478,7 +478,8 @@ EN = {
     'Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}, Abzweigungen {way}.': 'Exercising bot: course {course}, story answer {story}, cards {cards}, runs {runs}, forks {way}.',
     'Richtung Ziel': 'towards the goal', ', von vorhin': ', from before',
     '  Abzweigung: {n} Wege, nehme den {how} (Ziel bei {deg}°, {src})': '  Fork: {n} ways, taking the one {how} (goal at {deg}°, {src})',
-    'weg vom Ziel': 'away from the goal',
+    'weg vom Ziel': 'away from the goal', 'erst zum Ziel, dort weiter, dann weg': 'first to the goal, continue there, then away',
+    '  ZIEL erreicht: {t} | Knöpfe „{a}“ / „{b}“ → „{b}“ (weiterlaufen)': '  GOAL reached: {t} | buttons “{a}” / “{b}” → “{b}” (keep going)',
     'Exercising-Bot: spielt die Läufe in „Free Time → Exercising“ (würfeln, Abzweigungen, Story, Events, Karten).': 'Exercising bot: plays the runs in “Free Time → Exercising” (rolling, forks, story, events, cards).',
     'FINISH: Lauf {n} geschafft. „Claim & Exit“': 'FINISH: run {n} done. “Claim & Exit”',
     'Fertig: {n} Läufe. GO {go}×, Abzweigungen {ab}, Story {st}, Events {ev}, Shop {sh}, Karten benutzt {k}, Belohnungen {it}.': 'Done: {n} runs. GO {go}×, forks {ab}, story {st}, events {ev}, shop {sh}, cards used {k}, rewards {it}.',
