@@ -81,15 +81,16 @@ EXERCISING-BOT (Free Time > Exercising)
    der schon läuft).
 2. Im Bot "e" eingeben, den Kurs wählen (Enter = Marathon) und wie viele Läufe (Enter = alle, die
    "Exercising Left" noch erlaubt).
-3. Er würfelt (GO!), nimmt an Abzweigungen den gelben Pfeil weg von der Zielfahne, beantwortet Story-Fragen
+3. Er würfelt (GO!), geht an Abzweigungen erst Richtung Zielfahne, nimmt am Zielfeld
+   den rechten Knopf (weiterlaufen, damit die Action Points nicht verfallen) und geht danach weg vom Ziel, beantwortet Story-Fragen
    (Antwort A, einstellbar in potbot.ini), schließt Events und Belohnungen und holt am Ende mit
    "Claim & Exit" die Belohnung ab. Bei "Exercising Left: 0" hört er auf.
 Karten benutzt er nur, wenn sie nur helfen: Energy Candy, Lightweight Runners, Sports Drink und
 eine Multiplier-Karte. Reverse, Hitchhiking, Vitamin C Jell-O und andere lässt er liegen.
 Im Shop wählt er immer "Don't Buy". Er kauft nichts, auch nicht mit Action Points.
 Einstellungen in potbot.ini: exercising_kurs (1 bis 4), exercising_story (a, b oder zufall),
-exercising_karten (ja oder nein), exercising_ziel (meiden = weg vom Ziel, weil der Lauf dort endet
-und die übrigen Action Points verfallen; ziel = hin; zufall = zufällig).
+exercising_karten (ja oder nein), exercising_ziel (einmal = erst zum Ziel, dort weiter, dann weg;
+meiden = immer weg; ziel = immer hin; zufall = zufällig).
 
 WAS ER BEIM ANZIEHEN MACHT
 --------------------------
