@@ -22,6 +22,7 @@ import time
 import cv2
 import numpy as np
 
+import exboard as XB
 import layout as L
 from device import SafetyStop
 from texts import T
@@ -316,6 +317,12 @@ class Exerciser:
         self.skip_cards: list[np.ndarray] = []   # Karten, die der Bot nicht benutzt (oder leere Plätze)
         self.card_try = None                # (Platz, Ausschnitt) der Karte, die er gerade geöffnet hat
         self.tried = set()                  # Plätze, die er in dieser Runde schon angesehen hat
+        self.round_skip = []                # Karten, die er nur in dieser Runde nicht will (Sports Drink, Jell-O)
+        self.plan_round = None
+        self.want_double = False
+        self.bad_ahead = False
+        self.drain = 0                      # Runden mit Stamina Drain
+        self.ap = None
         self.round = None
         self.go_at_zero = False
         self.other = 0
@@ -413,6 +420,7 @@ class Exerciser:
         self.go_at_zero = False
         self.last_goal = None
         self.goal_reached = False
+        self.drain = 0
         return True
 
     def on_board(self, img, info):
@@ -420,6 +428,9 @@ class Exerciser:
             self.round = info.get('round')
             self.card_try = None
             self.tried = set()
+            self.round_skip = []
+            if self.drain > 0:
+                self.drain -= 1
         img = self.settle()
         if classify(self.reader.read(img))[0] != 'board':
             return                          # inzwischen ist ein Fenster aufgegangen (Story, Shop ...)
@@ -438,17 +449,28 @@ class Exerciser:
                 self.last_goal = goal
             elif self.last_goal:
                 goal = (self.last_goal[0], self.last_goal[1] + T(', von vorhin'), None)
-            if self.to_goal:
-                away = self.way == 'meiden' or (self.way == 'einmal' and self.goal_reached)
-                (x, y), g = pick_arrow(img, arrows, goal, away=away)
-            else:
-                (x, y), g = random.choice(arrows), None
-            if g:
-                self.log(T('  Abzweigung: {n} Wege, nehme den {how} (Ziel bei {deg}°, {src})', n=len(arrows),
-                           how=T('weg vom Ziel') if away else T('Richtung Ziel'),
-                           deg=round(np.degrees(g[0])), src=g[1]))
-            else:
+            spot = player_spot(img)
+            if self.way == 'zufall':
+                (x, y) = random.choice(arrows)
                 self.log(T('  Abzweigung: {n} Wege, nehme ({x}, {y})', n=len(arrows), x=x, y=y))
+            else:
+                steps = XB.read_dial(self.reader, img)
+                w = 0.0
+                if self.way in ('ziel', 'einmal') and not self.goal_reached:
+                    ap = info.get('ap')
+                    # je weniger Action Points, desto wichtiger der Weg zum Ziel (20 Diamanten)
+                    w = 1.5 if ap is None or ap > 8 else 4.0 if ap > 4 else 7.0
+                elif self.way == 'meiden':
+                    w = -3.0
+                rated = XB.rate_arrows(img, spot, arrows, steps=steps, after_goal=self.goal_reached,
+                                       goal_angle=goal[0] if goal else None, goal_weight=w)
+                sc, (x, y), best = rated[0]
+                for r_sc, r_a, r_p in rated:
+                    self.log(T('    Weg ({x}, {y}): Wert {v:.1f}  {tiles}', x=r_a[0], y=r_a[1], v=r_sc,
+                               tiles=' '.join(k for k in r_p[:6] if k != 'unsichtbar') or '?'))
+                self.log(T('  Abzweigung: {n} Wege, Würfe {steps}, nehme ({x}, {y}){goal}', n=len(rated),
+                           steps='/'.join(map(str, steps)), x=x, y=y,
+                           goal=T(' · Ziel bei {deg}° zählt {w:+g}', deg=round(np.degrees(goal[0])), w=w) if goal and w else ''))
             self.stats['abzweig'] += 1
             self.tap(x, y, 'Weg wählen', wait=1.2)
             return
@@ -456,8 +478,18 @@ class Exerciser:
             g = goal_dir(img)
             if g:
                 self.last_goal = g
-        if self.cards and self.try_card(img):
-            return
+        if self.cards:
+            if self.plan_round != self.round:
+                self.plan_round = self.round
+                try:
+                    self.want_double, self.bad_ahead, why = XB.card_plan(img, player_spot(img), self.goal_reached)
+                except Exception as e:  # nur für die Karten, darf den Lauf nicht stoppen
+                    self.want_double, self.bad_ahead, why = False, False, str(e)
+                self.ap = info.get('ap')
+                self.log(T('  Felder voraus: {why} → Sports Drink {yn}, Energy Candy {yn2}', why=why,
+                           yn=T('ja') if self.want_double else T('nein'), yn2=T('ja') if self.want_candy() else T('nein')))
+            if self.try_card(img):
+                return
         if info.get('ap') == 0 and self.go_at_zero:
             # mit 0 Action Points geht noch ein letzter Zug; danach kommt FINISH. Nicht noch einmal würfeln.
             self.other += 1
@@ -468,6 +500,16 @@ class Exerciser:
         self.stats['go'] += 1
         self.log(T('  Runde {r}, Action Points {ap}: GO!', r=info.get('round', '?'), ap=info.get('ap', '?')))
         self.tap(*GO, 'GO', wait=2.0)
+
+    def want_candy(self):
+        """Energy Candy (8 Schritte ohne Action Points): wenn voraus viele schlechte Felder liegen, wenn die Action
+        Points fürs Ziel knapp werden (Ziel noch nicht erreicht, höchstens 5 AP) oder ganz am Ende (sonst verfällt sie)."""
+        ap = self.ap
+        if self.bad_ahead:
+            return True
+        if ap is not None and ap <= 5 and not self.goal_reached and self.way in ('einmal', 'ziel'):
+            return True
+        return ap is not None and ap <= 1
 
     def try_card(self, img) -> bool:
         """Öffnet die nächste Karte, die der Bot in dieser Runde noch nicht angesehen hat."""
@@ -480,7 +522,7 @@ class Exerciser:
                 continue
             self.tried.add(i)
             c = self.crop(img, x, y)
-            if any(self.same_card(c, s) for s in self.skip_cards):
+            if any(self.same_card(c, s) for s in self.skip_cards + self.round_skip):
                 continue
             self.card_try = (i, c)
             self.tap(x, y, 'Karte ansehen', wait=1.0)
@@ -496,7 +538,18 @@ class Exerciser:
                 title = max(above, key=lambda b: b.cy).text
         text = ' '.join(b.text for b in boxes if own and own[0].cy - 60 < b.cy < own[0].cy + 120)
         n = norm(title)
-        good = n in GOOD_CARDS or any(p in norm(text) for p in GOOD_PARTS)
+        later = False                      # nicht jetzt, aber vielleicht in einer späteren Runde
+        if 'energycandy' in n:
+            good = self.want_candy()
+            later = not good
+        elif 'sportsdrink' in n:
+            good = self.want_double or (self.ap is not None and self.ap <= 2)
+            later = not good
+        elif 'vitaminc' in n or 'jello' in n:
+            good = self.drain > 0 and not self.goal_reached
+            later = not good
+        else:
+            good = n in GOOD_CARDS or any(p in norm(text) for p in GOOD_PARTS)
         slot = self.card_try[0] if self.card_try else None
         use = next((b for b in boxes if b.n == 'use'), None)
         if good and use:
@@ -508,7 +561,7 @@ class Exerciser:
             return
         self.log(T('  Karte „{name}“: bleibt liegen', name=title or '?'))
         if self.card_try:
-            self.skip_cards.append(self.card_try[1])
+            (self.round_skip if later else self.skip_cards).append(self.card_try[1])
         self.card_try = None
         # schließen: dieselbe Karte noch einmal antippen, sonst daneben aufs Brett
         if slot is not None:
@@ -550,6 +603,8 @@ class Exerciser:
             c = sorted(c, key=lambda b: -b.cy)[:1]
         txt = ' '.join(b.text for b in boxes if ev and ev.cy + 20 < b.cy < ev.cy + 260 and b not in c)
         self.log(T('  Event: {t}', t=txt[:100]))
+        if 'stamina' in norm(txt):
+            self.drain = 3
         if not c:
             self.other += 1
             return
