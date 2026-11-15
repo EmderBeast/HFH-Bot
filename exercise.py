@@ -25,6 +25,7 @@ import cv2
 import numpy as np
 
 import exboard as XB
+import exmap as XM
 import layout as L
 from device import SafetyStop
 from texts import T
@@ -386,6 +387,9 @@ class Exerciser:
         self.plan_round = None
         self.want_double = False
         self.bad_ahead = False
+        self.want_steps = None              # Steps Setter: so viele Schritte wählen
+        self.tracker = None                 # Position auf der Strecke aus den Spieldaten (exmap)
+        self.entered = None                 # Kurs, den der Bot selbst mit „Enter“ gestartet hat
         self.drain = 0                      # Runden mit Stamina Drain
         self.heavy = 0                      # Runden, in denen ein Wurf 2 Action Points kostet (Hantel)
         self.ap = None
@@ -488,6 +492,8 @@ class Exerciser:
         self.goal_reached = False
         self.drain = 0
         self.heavy = 0
+        self.tracker = None
+        self.entered = self.course
         return True
 
     def on_board(self, img, info):
@@ -503,6 +509,7 @@ class Exerciser:
         img = self.settle()
         if classify(self.reader.read(img))[0] != 'board':
             return                          # inzwischen ist ein Fenster aufgegangen (Story, Shop ...)
+        self.see_map(img)
         arrows = yellow_arrows(img)
         if arrows:
             # die Pfeile pulsieren und die Zielanzeige blinkt: ein paar Bilder ansehen
@@ -531,9 +538,30 @@ class Exerciser:
                     w = 1.5 if ap is None or ap > 8 else 4.0 if ap > 4 else 7.0
                 elif self.way == 'meiden':
                     w = -3.0
-                rated = XB.rate_arrows(img, spot, arrows, steps=steps, after_goal=self.goal_reached,
-                                       goal_angle=goal[0] if goal else None, goal_weight=w,
-                                       goal_visible=bool(goal and goal[1] == 'fahne'))
+                rated = None
+                if self.map_ok():
+                    t = self.tracker
+                    rated, seen = [], []
+                    for a in arrows:
+                        d = XB.dir_of(spot, a)
+                        n = t.neighbor_for(d)
+                        if n is None or n in seen:
+                            continue
+                        seen.append(n)
+                        bv = t.branch_value(n, steps, self.goal_reached, goal_weight=w if t.goal else 0.0)
+                        if bv is None:
+                            continue
+                        v = bv[0]
+                        if not t.goal and goal and w:       # Ziel noch nicht gesehen: nach der Fahnen-Anzeige
+                            v += w * float(np.cos(np.arctan2(d[1], d[0]) - goal[0]))
+                        rated.append((v, a, bv[2]))
+                    rated.sort(key=lambda r: -r[0])
+                    if not rated:
+                        rated = None
+                if rated is None:
+                    rated = XB.rate_arrows(img, spot, arrows, steps=steps, after_goal=self.goal_reached,
+                                           goal_angle=goal[0] if goal else None, goal_weight=w,
+                                           goal_visible=bool(goal and goal[1] == 'fahne'))
                 sc, (x, y), best = rated[0]
                 for r_sc, r_a, r_p in rated:
                     self.log(T('    Weg ({x}, {y}): Wert {v:.1f}  {tiles}', x=r_a[0], y=r_a[1], v=r_sc,
@@ -556,8 +584,19 @@ class Exerciser:
                 except Exception as e:  # nur für die Karten, darf den Lauf nicht stoppen
                     self.want_double, self.bad_ahead, why = False, False, str(e)
                 self.ap = info.get('ap')
+                self.want_steps = None
+                if self.map_ok():
+                    opts = self.tracker.landing_options(after_goal=self.goal_reached)
+                    if opts:
+                        s_best = max(opts, key=lambda k: opts[k])
+                        rnd = sum(opts.get(k, 0.0) for k in (1, 2, 3)) / 3
+                        if opts[s_best] >= XB.GOOD and opts[s_best] - rnd >= 2.5:
+                            self.want_steps = s_best
+                        why += T(', Landung 1/2/3: {o}', o='/'.join(f"{opts.get(k, 0):g}" for k in (1, 2, 3)))
                 self.log(T('  Felder voraus: {why} → Sports Drink {yn}, Energy Candy {yn2}', why=why,
                            yn=T('ja') if self.want_double else T('nein'), yn2=T('ja') if self.want_candy() else T('nein')))
+                if self.want_steps:
+                    self.log(T('  Steps Setter: {n} Schritte wären gut', n=self.want_steps))
             if self.try_card(img):
                 return
         if info.get('ap') == 0 and self.go_at_zero:
@@ -570,6 +609,37 @@ class Exerciser:
         self.stats['go'] += 1
         self.log(T('  Runde {r}, Action Points {ap}: GO!', r=info.get('round', '?'), ap=info.get('ap', '?')))
         self.tap(*GO, 'GO', wait=2.0)
+
+    def see_map(self, img):
+        """Position auf der Strecke bestimmen und die sichtbaren Symbole merken."""
+        try:
+            g = goal_dir(img)
+            obs, _ = XM.observe(img, player_spot(img), goal_visible=bool(g and g[1] == 'fahne'))
+            if self.tracker is None:
+                if self.entered:
+                    course = XM.Course(XM.MAP_IDS[self.entered])
+                else:
+                    mid, sc, _ = XM.guess_course(obs)
+                    course = XM.Course(mid)
+                    self.log(T('  Strecke erkannt: {name}', name=COURSE_NAMES[mid - 1001]))
+                self.tracker = XM.Tracker(course)
+            t = self.tracker
+            if t.update(obs, self.log):
+                if g and g[1] == 'fahne' and g[2] is not None:
+                    t.set_goal_from_flag(g[2], player_spot(img))
+                if t.goal and t.pos == t.goal and not self.goal_reached:
+                    self.goal_reached = True
+                    self.log(T('  Am Ziel angekommen.'))
+                d = ''
+                if t.goal:
+                    dist = t.course.dist_from(t.pos).get(t.goal)
+                    d = T(', Ziel {g} ({n} Felder)', g=t.goal, n=dist)
+                self.log(T('    Karte: Feld {pos}{d}, {k} Symbole bekannt', pos=t.pos, d=d, k=len(t.kinds)))
+        except Exception as e:      # die Karte ist eine Hilfe; ohne sie spielt der Bot wie vorher
+            self.log(T('    (Karte: {err})', err=e))
+
+    def map_ok(self):
+        return self.tracker is not None and self.tracker.pos is not None
 
     def want_candy(self):
         """Energy Candy (8 Schritte ohne Action Points): wenn voraus viele schlechte Felder liegen, wenn die Action
@@ -609,7 +679,11 @@ class Exerciser:
         text = ' '.join(b.text for b in boxes if own and own[0].cy - 60 < b.cy < own[0].cy + 120)
         n = norm(title)
         later = False                      # nicht jetzt, aber vielleicht in einer späteren Runde
-        if 'energycandy' in n:
+        steps_card = 'stepssetter' in n or 'choosethenumber' in norm(text)
+        if steps_card:
+            good = bool(self.want_steps)
+            later = not good
+        elif 'energycandy' in n:
             good = self.want_candy()
             later = not good
         elif 'sportsdrink' in n:
@@ -628,6 +702,9 @@ class Exerciser:
             self.tap(use.cx, use.cy, 'Use', expect='use', wait=1.5)
             self.card_try = None
             self.tried = set()              # die Karten rücken nach links
+            if steps_card:
+                self.choose_steps(self.want_steps)
+                self.want_steps = None
             return
         self.log(T('  Karte „{name}“: bleibt liegen', name=title or '?'))
         if self.card_try:
@@ -651,6 +728,21 @@ class Exerciser:
         self.shot('ziel')
         self.goal_reached = True
         self.tap(go.cx, go.cy, 'Weiterlaufen', wait=1.5)
+
+    def choose_steps(self, n):
+        """Nach dem Steps Setter die Zahl 1, 2 oder 3 antippen (und bestätigen, falls es einen Knopf gibt)."""
+        boxes = self.reader.read(self.snap())
+        nums = [b for b in boxes if b.text.strip() == str(n)]
+        if not nums:
+            self.shot('steps_setter')
+            self.log(T('  Steps Setter: die Zahl {n} nicht gefunden (Bildschirmfoto gespeichert); es geht mit GO weiter.', n=n))
+            return
+        b = min(nums, key=lambda b: (b.cx > 1300, -b.cy))      # erst Knöpfe außerhalb der Würfelscheibe
+        self.tap(b.cx, b.cy, 'Schritte wählen', wait=0.8)
+        ok = [b for b in self.reader.read(self.snap()) if b.n in ('confirm', 'ok', 'use')]
+        if ok:
+            self.tap(ok[0].cx, ok[0].cy, 'Bestätigen', wait=1.0)
+        self.log(T('  Steps Setter: {n} Schritte gewählt', n=n))
 
     def on_story(self, boxes):
         opt = story_options(boxes)
