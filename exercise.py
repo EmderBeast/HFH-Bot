@@ -55,11 +55,11 @@ BAD_PARTS = ['purchas', 'recharg', 'refill', 'topup', 'diamond', 'gem', 'recruit
 OK_PARTS = ['dontbuy', 'donotbuy']  # „Don't Buy“ ist erlaubt
 
 
-def tap_text_ok(text: str) -> bool:
+def tap_text_ok(text: str, allow=()) -> bool:
     n = norm(text)
     for ok in OK_PARTS:
         n = n.replace(ok, '')
-    return not any(b in n for b in BAD_PARTS)
+    return not any(b in n for b in BAD_PARTS if b not in allow)
 
 
 # ---------------------------------------------------------------- Bild auswerten
@@ -476,7 +476,7 @@ class Exerciser:
     def same_card(self, a, b):
         return float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean()) < 12
 
-    def tap(self, x, y, purpose, expect: str | None = None, wait=1.0):
+    def tap(self, x, y, purpose, expect: str | None = None, wait=1.0, allow=()):
         """Tippt erst, nachdem die Stelle gelesen ist: dort darf nichts Verbotenes stehen; mit expect muss der Text
         dort stehen."""
         img = self.snap()
@@ -486,7 +486,7 @@ class Exerciser:
                                    purpose=purpose, x=round(x), y=round(y)))
         near = self.reader.read(img, (x - 160, y - 45, x + 160, y + 45))
         for b in near:
-            if b.x0 - 10 <= x <= b.x1 + 10 and b.y0 - 10 <= y <= b.y1 + 10 and not tap_text_ok(b.text):
+            if b.x0 - 10 <= x <= b.x1 + 10 and b.y0 - 10 <= y <= b.y1 + 10 and not tap_text_ok(b.text, allow):
                 raise SafetyStop(T('Abgebrochen: An der Stelle für „{purpose}“ steht „{text}“.', purpose=purpose, text=b.text))
         if expect and not any(norm(expect) in b.n for b in near):
             return False
@@ -865,7 +865,9 @@ class Exerciser:
             b = opt[0] if pick == 'a' else opt[1]
         self.log(T('  Story: {q} → {a}{why}', q=q[:90], a=b.text, why=why))
         self.stats['story'] += 1
-        self.tap(b.cx, b.cy, 'Antwort', wait=1.5)
+        # Story-Antworten wie „Buy a bottle of water“ kosten nichts (Spieldaten: die Belohnung kommt dazu); nur das
+        # Wort „buy“ ist hier erlaubt, Gems, Diamonds, Recharge usw. stoppen weiter
+        self.tap(b.cx, b.cy, 'Antwort', wait=1.5, allow=('buy', 'purchas', 'store', 'shop'))
 
     def on_event(self, boxes):
         ev = next((b for b in boxes if b.n == 'event'), None)
