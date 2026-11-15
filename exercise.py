@@ -240,8 +240,10 @@ def classify(boxes) -> tuple[str, dict]:
         return 'finish', info
     if has('taptoclose'):
         return 'obtained', info
-    if has('confirmation') and (has('nonegativeeffect') or has('stillwanttouse')):
-        return 'noeffect', info             # Jell-O ohne schlechten Effekt: nicht bestätigen, schließen
+    if any(n.startswith('confirmation') for n in ns):
+        # Rückfrage beim Benutzen einer Karte („No negative effects …“, „Sports Drink effect is already active …“):
+        # nie bestätigen, mit dem X schließen
+        return 'noeffect', info
     if has('stepselection') or has('movementwillbegin'):
         return 'steps', info
     if any(n in ('gotit', 'gotit!') for n in ns) or has('goaltips'):
@@ -442,6 +444,7 @@ class Exerciser:
         self.want_steps = None              # Steps Setter: so viele Schritte wählen
         self.tracker = None                 # Position auf der Strecke aus den Spieldaten (exmap)
         self.surveyed = False               # Spielfeld in diesem Lauf schon einmal angesehen
+        self.drink_until = -1               # Sports Drink wirkt bis vor diese Runde
         self.look_around = True
         self.entered = None                 # Kurs, den der Bot selbst mit „Enter“ gestartet hat
         self.drain = 0                      # Runden mit Stamina Drain
@@ -795,6 +798,8 @@ class Exerciser:
         if 'energycandy' in n:
             return self.want_candy()
         if 'sportsdrink' in n:
+            if self.round is not None and self.round < self.drink_until:
+                return False                    # wirkt noch (2 Runden)
             return self.want_double or (self.ap is not None and self.ap <= 2)
         if 'vitaminc' in n or 'jello' in n:
             return (self.drain > 0 and not self.goal_reached) or self.heavy > 0
@@ -870,6 +875,8 @@ class Exerciser:
                 self.want_steps = None
             if 'vitaminc' in n or 'jello' in n:
                 self.drain = self.heavy = 0     # der schlechte Effekt ist weg
+            if 'sportsdrink' in n:
+                self.drink_until = (self.round or 0) + 2
             return
         self.log(T('  Karte „{name}“: bleibt liegen', name=title or '?'))
         if self.card_try:
@@ -1031,7 +1038,10 @@ class Exerciser:
             elif state == 'noeffect':
                 self.drain = self.heavy = 0
                 t = next((b for b in boxes if b.n.startswith('confirmation')), None)
-                self.log(T('  Kein schlechter Effekt mehr: Vitamin C Jell-O nicht benutzen, Fenster schließen'))
+                txt = ' '.join(b.text for b in boxes if t and t.cy + 40 < b.cy < t.cy + 200)
+                self.log(T('  Rückfrage „{t}“: nicht bestätigen, Fenster schließen', t=txt[:90]))
+                if 'sportsdrink' in norm(txt):
+                    self.drink_until = (self.round or 0) + 2
                 # das X oben rechts im Fenster (Screenshot 15.11.2026: Fenster 1600er-Bild x 535-1105, Titel bei y 300)
                 self.tap(1082, t.cy if t else 300, 'Fenster schließen', wait=1.2)
             elif state == 'tips':
