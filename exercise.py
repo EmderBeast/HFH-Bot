@@ -264,7 +264,7 @@ def goal_buttons(boxes):
     if any('claimexit' in n or n.startswith('story') for n in ns):
         return None
     btn = [b for b in boxes if 560 < b.cy < 840 and 150 < b.cx < 1450 and 2 <= len(b.n) <= 22
-           and not b.n.startswith(('auto', 'round', 'storage'))]
+           and not b.n.startswith(('auto', 'round', 'storage')) and sum(ch.isdigit() for ch in b.n) * 2 < len(b.n)]
     pairs = []
     for i, l in enumerate(btn):
         for r in btn[i + 1:]:
@@ -273,13 +273,14 @@ def goal_buttons(boxes):
                 if l2.cx < 800 < r2.cx:
                     pairs.append((l2, r2))
     talk = any(w in n for n in ns for w in GOAL_WORDS)
+    # erst Paare mit bekannten Wörtern („Claim“ / „Skip“), dann (nur wenn vom Ziel die Rede ist) irgendein Paar
     for left, right in pairs:
         if any(w in right.n for w in GO_ON) or any(w in left.n for w in STOP):
             return left, right
         if any(w in left.n for w in GO_ON) or any(w in right.n for w in STOP):
             return right, left
-        if talk:
-            return left, right
+    if talk and pairs:
+        return max(pairs, key=lambda p: p[0].cy)          # die Knöpfe stehen unten
     return None
 
 
