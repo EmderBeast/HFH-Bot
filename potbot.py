@@ -53,7 +53,7 @@ def config():
             'ex_course': (s.get('exercising_kurs') or s.get('exercising_course') or '4').strip(),
             'ex_story': (s.get('exercising_story') or 'a').strip().lower(),
             'ex_cards': (s.get('exercising_karten') or s.get('exercising_cards') or 'ja').strip().lower(),
-            'ex_goal': (s.get('exercising_ziel') or s.get('exercising_goal') or 'ja').strip().lower()}
+            'ex_goal': (s.get('exercising_ziel') or s.get('exercising_goal') or 'meiden').strip().lower()}
 
 
 def save_lang(lang):
@@ -543,7 +543,8 @@ def exercise_menu():
     runs = int(a) if a.isdigit() else 0
     story = cfg['ex_story'] if cfg['ex_story'] in ('a', 'b') else ('zufall' if cfg['ex_story'].startswith(('z', 'r')) else 'a')
     cards = not cfg['ex_cards'].startswith('n')
-    to_goal = not cfg['ex_goal'].startswith('n')
+    g = cfg['ex_goal']
+    way = 'ziel' if g.startswith(('ja', 'hin', 'zi', 'go', 'y')) else 'zufall' if g.startswith(('z', 'r', 'n')) else 'meiden'
     print()
     print(T('Vorbereitung im Spiel: „Free Time“ → „Exercising“ öffnen (das Fenster „Exercising Courses“) oder einen Lauf, der schon läuft.'))
     print(T('Während des Laufs bitte nichts im Emulator anklicken. Abbrechen mit Strg+C.'))
@@ -558,7 +559,7 @@ def exercise_menu():
     ex = None
     try:
         dev, reader, cfg = connect(log)
-        ex = Exerciser(dev, reader, log, course=course, story=story, cards=cards, runs=runs, to_goal=to_goal,
+        ex = Exerciser(dev, reader, log, course=course, story=story, cards=cards, runs=runs, way=way,
                        debug_dir=os.path.join(LOGS, 'screenshots', stamp))
         ex.run()
     except KeyboardInterrupt:

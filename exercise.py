@@ -2,8 +2,8 @@
 
 Was der Bot tippt (und sonst nichts):
   - im Fenster „Exercising Courses“: „Continue“ oder „Enter“ beim gewählten Kurs, solange „Exercising Left“ über 0 ist
-  - auf dem Brett: „GO!“ (würfeln), an Abzweigungen den gelben Pfeil, der am ehesten zur Zielfahne zeigt, auf Wunsch
-    die Karten unten links
+  - auf dem Brett: „GO!“ (würfeln), an Abzweigungen den gelben Pfeil, der am weitesten von der Zielfahne weg zeigt
+    (am Ziel endet der Lauf, und die übrigen Action Points verfallen), auf Wunsch die Karten unten links
   - bei Karten: „Use“ nur für Karten aus der Liste unten (Energy Candy, Lightweight Runners, Sports Drink, Multiplier)
   - „Story“: Antwort A oder B; „Event“: „Complete“; „Obtained“: „Tap to close“; „FINISH“: „Claim & Exit“
   - „Shop“: immer „Don't Buy“. Der Bot kauft nie etwas, auch nicht mit Action Points.
@@ -180,8 +180,9 @@ def merge_arrows(lists):
     return out
 
 
-def pick_arrow(img, arrows, g=None):
-    """Der Pfeil, der am ehesten zum Ziel zeigt. Ohne Ziel: zufällig."""
+def pick_arrow(img, arrows, g=None, away=True):
+    """Der Pfeil, der am weitesten vom Ziel weg zeigt (away=True) oder am ehesten hin. Ohne Ziel: zufällig.
+    Wer am Ziel ankommt, beendet den Lauf, und die übrigen Action Points verfallen; die Belohnung gibt es auch so."""
     g = g or goal_dir(img)
     if not g or len(arrows) < 2:
         return random.choice(arrows), None
@@ -190,7 +191,7 @@ def pick_arrow(img, arrows, g=None):
 
     def score(a):
         return np.cos(np.arctan2(a[1] - py, a[0] - px) - ga)
-    return max(arrows, key=score), g
+    return (min if away else max)(arrows, key=score), g
 
 
 def moving(a: np.ndarray, b: np.ndarray) -> float:
@@ -262,13 +263,14 @@ def story_options(boxes):
 # ---------------------------------------------------------------- Bot
 
 class Exerciser:
-    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None, to_goal=True):
+    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None, way='meiden'):
         self.dev, self.reader, self.log = dev, reader, log
         dev.reader = reader
         self.course = max(1, min(4, int(course or 4)))
         self.story = story if story in ('a', 'b', 'zufall') else 'a'
         self.cards = cards
-        self.to_goal = to_goal              # an Abzweigungen Richtung Zielfahne
+        self.way = way if way in ('meiden', 'ziel', 'zufall') else 'meiden'   # an Abzweigungen: weg vom Ziel, hin, zufällig
+        self.to_goal = self.way != 'zufall'   # Zielrichtung lesen
         self.last_goal = None               # zuletzt gesehene Richtung zum Ziel
         self.runs = runs                    # 0 = bis „Exercising Left“ 0 ist
         self.debug_dir = debug_dir
@@ -398,11 +400,12 @@ class Exerciser:
             elif self.last_goal:
                 goal = (self.last_goal[0], self.last_goal[1] + T(', von vorhin'), None)
             if self.to_goal:
-                (x, y), g = pick_arrow(img, arrows, goal)
+                (x, y), g = pick_arrow(img, arrows, goal, away=self.way == 'meiden')
             else:
                 (x, y), g = random.choice(arrows), None
             if g:
-                self.log(T('  Abzweigung: {n} Wege, nehme den Richtung Ziel ({deg}°, {src})', n=len(arrows),
+                self.log(T('  Abzweigung: {n} Wege, nehme den {how} (Ziel bei {deg}°, {src})', n=len(arrows),
+                           how=T('weg vom Ziel') if self.way == 'meiden' else T('Richtung Ziel'),
                            deg=round(np.degrees(g[0])), src=g[1]))
             else:
                 self.log(T('  Abzweigung: {n} Wege, nehme ({x}, {y})', n=len(arrows), x=x, y=y))
@@ -515,7 +518,7 @@ class Exerciser:
         self.log(T('Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}, Abzweigungen {way}.',
                    course=COURSE_NAMES[self.course - 1], story=self.story.upper() if self.story != 'zufall' else T('zufällig'),
                    cards=T('ja') if self.cards else T('nein'), runs=self.runs or T('alle übrigen'),
-                   way=T('Richtung Ziel') if self.to_goal else T('zufällig')))
+                   way={'meiden': T('weg vom Ziel'), 'ziel': T('Richtung Ziel')}.get(self.way, T('zufällig'))))
         last_state = None
         while True:
             img = self.snap()

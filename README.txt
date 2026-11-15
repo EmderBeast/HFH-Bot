@@ -79,14 +79,15 @@ EXERCISING BOT (Free Time > Exercising)
    already going).
 2. In the bot, type "e", choose the course (Enter = Marathon) and how many runs (Enter = all that
    "Exercising Left" still allows).
-3. It rolls (GO!), takes the yellow arrow towards the finish flag at forks, answers story questions (answer A, can be
+3. It rolls (GO!), takes the yellow arrow away from the finish flag at forks, answers story questions (answer A, can be
    changed in potbot.ini), closes events and rewards, and collects the reward with "Claim & Exit" at
    the end. It stops at "Exercising Left: 0".
 It only uses cards that only help: Energy Candy, Lightweight Runners, Sports Drink and a Multiplier
 card. It leaves Reverse, Hitchhiking, Vitamin C Jell-O and others.
 In the shop it always picks "Don't Buy". It buys nothing, not even with Action Points.
 Settings in potbot.ini: exercising_kurs (1 to 4), exercising_story (a, b or zufall = random),
-exercising_karten (ja = yes or nein = no), exercising_ziel (ja = towards the finish flag, nein = random).
+exercising_karten (ja = yes or nein = no), exercising_ziel (meiden = away from the goal, because the run
+ends there and the remaining Action Points are lost; ziel = towards it; zufall = random).
 
 WHAT IT DOES WHEN EQUIPPING
 ---------------------------
