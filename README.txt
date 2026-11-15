@@ -85,7 +85,7 @@ EXERCISING BOT (Free Time > Exercising)
    the end. It stops at "Exercising Left: 0".
 At forks it reads the fields on every way (story and gift = diamonds, arrow = +1 Action Point; banana peel =
 -1 Action Point, question mark = a card is lost, hand with sweat = Stamina Drain, dumbbell = every roll costs
-2 Action Points) and works out with the possible
+2 Action Points, swirl = random direction) and works out with the possible
 rolls which way brings the most. Before the goal, the goal pulls harder the fewer Action Points are left. Cards:
 Lightweight Runners always; Sports Drink when good fields are only 4 to 6 fields away; Energy Candy with many bad
 fields ahead, when the Action Points for the goal run short, or at the very end; Vitamin C Jell-O against

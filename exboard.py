@@ -31,7 +31,7 @@ VALUE = {
     'shop': 0.0,
     'pfeil': 4.0,           # +1 Action Point (Nutzer, 15.11.2026)
     'hantel': -6.0,         # jeder Wurf kostet 2 statt 1 Action Point (Nutzer, 15.11.2026)
-    'wirbel': 0.0,
+    'wirbel': -3.0,         # die Figur läuft in zufällige Richtungen, man kann nicht mehr wählen (Nutzer, 15.11.2026)
     'leer': 0.0,
     'start': 0.0,
     'banane': -4.0,         # kostet einen Action Point
