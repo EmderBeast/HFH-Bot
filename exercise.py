@@ -730,19 +730,28 @@ class Exerciser:
         self.tap(go.cx, go.cy, 'Weiterlaufen', wait=1.5)
 
     def choose_steps(self, n):
-        """Nach dem Steps Setter die Zahl 1, 2 oder 3 antippen (und bestätigen, falls es einen Knopf gibt)."""
-        boxes = self.reader.read(self.snap())
-        nums = [b for b in boxes if b.text.strip() == str(n)]
-        if not nums:
-            self.shot('steps_setter')
-            self.log(T('  Steps Setter: die Zahl {n} nicht gefunden (Bildschirmfoto gespeichert); es geht mit GO weiter.', n=n))
-            return
-        b = min(nums, key=lambda b: (b.cx > 1300, -b.cy))      # erst Knöpfe außerhalb der Würfelscheibe
-        self.tap(b.cx, b.cy, 'Schritte wählen', wait=0.8)
-        ok = [b for b in self.reader.read(self.snap()) if b.n in ('confirm', 'ok', 'use')]
-        if ok:
-            self.tap(ok[0].cx, ok[0].cy, 'Bestätigen', wait=1.0)
-        self.log(T('  Steps Setter: {n} Schritte gewählt', n=n))
+        """Nach dem Steps Setter öffnet sich ein Fenster mit 1 (links), 2 (Mitte) und 3 (rechts). Ein Tipp auf die
+        Zahl genügt, die Figur läuft sofort los (Nutzer, 15.11.2026). Die Zahlen der Würfelscheibe unten rechts
+        zählen nicht."""
+        for _ in range(3):
+            boxes = self.reader.read(self.snap())
+            nums = [b for b in boxes if b.text.strip() in ('1', '2', '3') and not (b.cx > 1280 and b.cy > 540)]
+            row = []
+            for b in nums:
+                same = [o for o in nums if abs(o.cy - b.cy) < 30]
+                if len(same) >= len(row):
+                    row = same
+            row = sorted(row, key=lambda b: b.cx)
+            pick = next((b for b in row if b.text.strip() == str(n)), None)
+            if pick is None and len(row) == 3:
+                pick = row[n - 1]
+            if pick is not None:
+                self.tap(pick.cx, pick.cy, 'Schritte wählen', wait=1.5)
+                self.log(T('  Steps Setter: {n} Schritte gewählt', n=n))
+                return
+            time.sleep(0.6)
+        self.shot('steps_setter')
+        self.log(T('  Steps Setter: die Zahl {n} nicht gefunden (Bildschirmfoto gespeichert); es geht mit GO weiter.', n=n))
 
     def on_story(self, boxes):
         opt = story_options(boxes)
