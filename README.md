@@ -35,7 +35,7 @@ Full guide: [README.txt](README.txt) (English) · [LIESMICH.txt](LIESMICH.txt) (
 | `start.bat` | Sets up Python and the text recognition, then starts the bot |
 | `potbot.py` | Menu |
 | `bot.py`, `scan.py`, `plan.py`, `layout.py` | Equipping, account scan, planning, screen layout |
-| `exercise.py` | Exercising bot (Free Time → Exercising) |
+| `exercise.py`, `exboard.py`, `bilder/` | Exercising bot (Free Time → Exercising): flow, reading the board, field pictures |
 | `device.py`, `fastadb.py` | Connection to LDPlayer via ADB |
 | `vision.py` | Text recognition (RapidOCR) |
 | `texts.py`, `gamedata.json` | Texts (DE/EN) and game data |
