@@ -230,6 +230,8 @@ def classify(boxes) -> tuple[str, dict]:
         return 'finish', info
     if has('taptoclose'):
         return 'obtained', info
+    if has('stepselection') or has('movementwillbegin'):
+        return 'steps', info
     if has('currentactionpoints') and (has('dontbuy') or has('purchase') or has('shop')):
         return 'shop', info
     if has('owned') and any(n == 'use' for n in ns):
@@ -811,29 +813,27 @@ class Exerciser:
         self.goal_reached = True
         self.tap(go.cx, go.cy, 'Weiterlaufen', wait=1.5)
 
+    STEP_BOXES = {1: (406, 393), 2: (800, 393), 3: (1201, 393)}   # Fenster „Step Selection“ (Screenshot 15.11.2026)
+    STEP_OK = (792, 673)
+
     def choose_steps(self, n):
-        """Nach dem Steps Setter öffnet sich ein Fenster mit 1 (links), 2 (Mitte) und 3 (rechts). Ein Tipp auf die
-        Zahl genügt, die Figur läuft sofort los (Nutzer, 15.11.2026). Die Zahlen der Würfelscheibe unten rechts
-        zählen nicht."""
-        for _ in range(3):
+        """Fenster „Step Selection“ nach dem Steps Setter: Karte 1 (links), 2 (Mitte) oder 3 (rechts) antippen, dann
+        „OK“. Die großen Zahlen liest die Texterkennung nicht sicher, darum feste Stellen; „OK“ wird gelesen."""
+        for _ in range(4):
             boxes = self.reader.read(self.snap())
-            nums = [b for b in boxes if b.text.strip() in ('1', '2', '3') and not (b.cx > 1280 and b.cy > 540)]
-            row = []
-            for b in nums:
-                same = [o for o in nums if abs(o.cy - b.cy) < 30]
-                if len(same) >= len(row):
-                    row = same
-            row = sorted(row, key=lambda b: b.cx)
-            pick = next((b for b in row if b.text.strip() == str(n)), None)
-            if pick is None and len(row) == 3:
-                pick = row[n - 1]
-            if pick is not None:
-                self.tap(pick.cx, pick.cy, 'Schritte wählen', wait=1.5)
-                self.log(T('  Steps Setter: {n} Schritte gewählt', n=n))
-                return
+            if classify(boxes)[0] == 'steps':
+                break
             time.sleep(0.6)
-        self.shot('steps_setter')
-        self.log(T('  Steps Setter: die Zahl {n} nicht gefunden (Bildschirmfoto gespeichert); es geht mit GO weiter.', n=n))
+        else:
+            self.shot('steps_setter')
+            self.log(T('  Steps Setter: das Fenster „Step Selection“ kam nicht (Bildschirmfoto gespeichert).'))
+            return
+        n = n if n in (1, 2, 3) else 2
+        self.tap(*self.STEP_BOXES[n], 'Schritte wählen', wait=0.8)
+        ok = [b for b in self.reader.read(self.snap()) if b.n == 'ok']
+        x, y = (ok[0].cx, ok[0].cy) if ok else self.STEP_OK
+        self.tap(x, y, 'Bestätigen', expect='ok', wait=1.5)
+        self.log(T('  Steps Setter: {n} Schritte gewählt', n=n))
 
     def on_story(self, boxes):
         opt = story_options(boxes)
@@ -937,6 +937,13 @@ class Exerciser:
                 self.on_story(boxes)
             elif state == 'goal':
                 self.on_goal(boxes)
+            elif state == 'steps':
+                n = self.want_steps
+                if not n and self.map_ok():
+                    opts = self.tracker.landing_options(after_goal=self.goal_reached)
+                    n = max(opts, key=lambda k: opts[k]) if opts else 2
+                self.choose_steps(n or 2)
+                self.want_steps = None
             elif state == 'event':
                 self.on_event(boxes)
             elif state == 'moving':
