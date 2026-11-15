@@ -240,6 +240,8 @@ def classify(boxes) -> tuple[str, dict]:
         return 'shop', info
     if has('owned') and any(n == 'use' for n in ns):
         return 'card', info
+    if has('freetime') and has('recruit') and 'ap' not in info:
+        return 'home', info                 # Startbildschirm: „Free Time“ antippen
     if any(n == 'story' or n.startswith('story') for n in ns):
         return 'story', info
     if 'ap' in info and goal_buttons(boxes):
@@ -974,6 +976,12 @@ class Exerciser:
                 if not (info.get('ap') == 0 and self.go_at_zero):
                     self.other = 0
                 self.on_board(img, info)
+            elif state == 'home':
+                b = next((b for b in boxes if b.n == 'freetime'), None)
+                if b:
+                    self.tap(b.cx, b.cy, 'Free Time', expect='freetime', wait=3.0)
+                else:
+                    self.other += 1
             elif state == 'freetime':
                 ex = [b for b in boxes if b.n.startswith('exercising')]
                 if ex:

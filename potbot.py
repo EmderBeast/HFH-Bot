@@ -214,11 +214,11 @@ def delete_loadout(items):
         print(T('Gelöscht.'))
 
 
-def connect(log):
+def connect(log, serial=None):
     from device import Device, find_adb
     from vision import Reader
     cfg = config()
-    dev = Device(find_adb(cfg['adb']), cfg['serial'], log)
+    dev = Device(find_adb(cfg['adb']), serial or cfg['serial'], log)
     try:
         dev.tempo = max(0.4, min(1.5, float(str(cfg['tempo']).replace(',', '.')))) if cfg['tempo'] else dev.tempo
     except ValueError:
@@ -529,6 +529,29 @@ def run_scan(parts, rarities=None, base=None, lv1=False):
     log(T('Protokoll: {path}', path=log.f.name))
 
 
+def pick_emulator():
+    """Bei mehreren LDPlayer-Fenstern fragen, welches (sonst nähme der Bot einfach das erste)."""
+    try:
+        from device import Device, find_adb
+        cfg = config()
+        if cfg['serial']:
+            return cfg['serial']
+        d = Device(find_adb(cfg['adb']), None, print)
+        d._run(['start-server'], timeout=30)
+        devs = sorted(set(d._devices()))
+    except Exception:
+        return None
+    if len(devs) <= 1:
+        return None
+    print(T('Es laufen mehrere LDPlayer-Fenster:'))
+    for i, s in enumerate(devs, 1):
+        m = re.search(r'emulator-(\d+)', s)
+        nr = (int(m.group(1)) - 5554) // 2 + 1 if m else '?'
+        print(T('  {i}  {serial}  (LDPlayer-Fenster Nr. {nr} in der Reihenfolge des LDMultiPlayers)', i=i, serial=s, nr=nr))
+    a = ask(T('Welches? Nummer, Enter = 1: '))
+    return devs[int(a) - 1] if a.isdigit() and 1 <= int(a) <= len(devs) else devs[0]
+
+
 def exercise_menu():
     from exercise import COURSE_NAMES
     cfg = config()
@@ -547,6 +570,7 @@ def exercise_menu():
     g = cfg['ex_goal']
     way = ('meiden' if g.startswith(('m', 'av')) else 'ziel' if g.startswith(('hin', 'zi', 'go')) else
            'zufall' if g.startswith(('zu', 'r', 'n')) else 'einmal')
+    serial = pick_emulator()
     print()
     print(T('Vorbereitung im Spiel: „Free Time“ → „Exercising“ öffnen (das Fenster „Exercising Courses“) oder einen Lauf, der schon läuft.'))
     print(T('Während des Laufs bitte nichts im Emulator anklicken. Abbrechen mit Strg+C.'))
@@ -567,7 +591,7 @@ def exercise_menu():
     log(T('HFH-Bot {version} · Exercising', version=VERSION))
     ex = None
     try:
-        dev, reader, cfg = connect(log)
+        dev, reader, cfg = connect(log, serial)
         ex = Exerciser(dev, reader, log, course=course, story=story, cards=cards, runs=runs, way=way,
                        debug_dir=os.path.join(LOGS, 'screenshots', stamp))
         ex.run()
