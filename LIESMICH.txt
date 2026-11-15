@@ -205,6 +205,11 @@ NEU IN 1.14 (11.11.2026)
   über eine Stunde). Einen Spieler, den die Pfeile nicht erreichen, sucht er jetzt in "Manage Players": Er liest die
   Namensstreifen auf den Kacheln, tippt nur passende an und öffnet "Player Potential" direkt bei diesem Spieler.
 
+NEU IN 1.18 (15.11.2026)
+- Account-Scan, Bonds: Er liest den Collection Value deiner Player Gallery mit (Gallery -> Player -> Gallery
+  Rewards, z. B. 8040) und schreibt ihn in die Scan-Datei. Der Simulator setzt damit die Regel "Player Gallery:
+  Collection Value". Er tippt dort nur auf das Geschenk "Gallery Rewards" und das X, nie auf "Claim".
+
 NEU IN 1.15 (11.11.2026)
 ------------------------
 - Schneller: Das Bildschirmfoto kommt jetzt roh vom Emulator (0,4 statt 0,85 Sekunden), Seitentitel und Spielername

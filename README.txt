@@ -203,6 +203,11 @@ NEW IN 1.14 (11.11.2026)
   hour). A player the arrows do not reach is now looked up in "Manage Players": the bot reads the name strips on the
   tiles, taps only matching ones and opens "Player Potential" directly at that player.
 
+NEW IN 1.18 (15.11.2026)
+- Account scan, bonds: it also reads the Collection Value of your Player Gallery (Gallery -> Player -> Gallery
+  Rewards, e.g. 8040) and writes it into the scan file. The simulator sets the rule "Player Gallery: Collection
+  Value" from it. It only taps the gift "Gallery Rewards" and the X there, never "Claim".
+
 NEW IN 1.15 (11.11.2026)
 ------------------------
 - Faster: the screenshot now comes raw from the emulator (0.4 instead of 0.85 seconds), the bot reads the page title

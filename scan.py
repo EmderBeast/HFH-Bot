@@ -418,7 +418,7 @@ class Scanner(Bot):
              ('featuredmemory', 'memory'), ('playerpotential', 'pp'), ('potentialinventory', 'inv'),
              ('manageinventory', 'manage_inv'), ('bondgallery', 'bond_gallery'), ('bondinfo', 'bond_info'),
              ('memorygallery', 'mem_gallery'), ('playerbond', 'player_bond'), ('teamlineup', 'team'),
-             ('teamcheer', 'cheer'), ('gallery', 'gallery'), ('coach', 'coach'))
+             ('teamcheer', 'cheer'), ('playergallery', 'player_gallery'), ('gallery', 'gallery'), ('coach', 'coach'))
 
     def __init__(self, dev, reader, log=print, max_players=1000, debug_dir=None, save=None):
         super().__init__(dev, reader, log, dry=True, max_players=max_players, debug_dir=debug_dir)
@@ -426,6 +426,7 @@ class Scanner(Bot):
         self.data = {'hfhscan': 1, 'date': time.strftime('%Y-%m-%d %H:%M'), 'tool': 'HFH-Bot'}
         self.notes = []                  # Hinweise für die Zusammenfassung am Ende
         self.gallery_players = None      # "Player 136/146" in der Gallery
+        self.gallery_value = None        # Collection Value der Player Gallery (z. B. 8040), 1.18
         self.rarities = None             # z. B. {'SP', 'UR', 'SSR'}: nur diese Spieler lesen
         self.sorted_rarity = False
         self.sort_level = False          # Manage Players vorher nach Level sortieren (1.15), danach wieder Deploy
@@ -2233,6 +2234,50 @@ class Scanner(Bot):
         self.bond_loop(res, seen, L.BI_PREV)
         self.back_to('bond_gallery')
 
+    def gallery_value_from(self, img):
+        """Collection Value aus dem Fenster „Gallery Rewards“: jede Zeile zeigt „8040/8050“, links steht dein Wert.
+        Er nimmt die Zahl, die in den meisten Zeilen links steht."""
+        cnt = {}
+        for b in V.merge_lines(self.ocr(img, L.PG_VALUES)):
+            for m in re.finditer(r'(\d[\d.,]{1,6})\s*/\s*(\d[\d.,]{1,6})', b.text):
+                a, z = (int(re.sub(r'\D', '', g)) for g in m.groups())
+                if 0 <= a <= 30000 and a <= z <= 30000:
+                    cnt[a] = cnt.get(a, 0) + 2
+            if '/' not in b.text:                      # „8040“ und „/8050“ getrennt gelesen: die erste Zahl der Zeile
+                m = re.match(r'\D{0,3}(\d{2,5})\b', b.text.strip())
+                if m:
+                    cnt[int(m.group(1))] = cnt.get(int(m.group(1)), 0) + 1
+        return max(cnt, key=lambda k: (cnt[k], k)) if cnt else None
+
+    def read_gallery_value(self):
+        """Gallery -> Player -> Gallery Rewards: liest den Collection Value und geht zurück in die Gallery (1.18).
+        Geht etwas schief, läuft der Scan ohne den Wert weiter."""
+        try:
+            self.enter('player_gallery', L.GAL_PLAYER_TAP, 'Player Gallery')
+            self.dev.tap(*L.PG_REWARDS, 'Gallery Rewards', wait=1.2)
+            img, ok = self.wait(lambda im: 'collectionvalue' in self.text_of(im, L.PG_POPUP), timeout=6, interval=0.5)
+            if ok:
+                for _ in range(3):
+                    v = self.gallery_value_from(img)
+                    if v is not None:
+                        self.gallery_value = v
+                        self.log(T('  Player Gallery: Collection Value {n}.', n=v))
+                        break
+                    time.sleep(0.6)
+                    img = self.snap()
+                for _ in range(3):
+                    self.dev.tap(*L.PG_CLOSE, 'Fenster schließen', wait=1.0)
+                    if 'collectionvalue' not in self.text_of(self.snap(), L.PG_POPUP):
+                        break
+            if self.gallery_value is None:
+                self.shot('gallery_value')
+                self.warn(T('Der Collection Value der Player Gallery ließ sich nicht lesen.'))
+            self.back_to('gallery')
+        except BotError:
+            self.warn(T('Der Collection Value der Player Gallery ließ sich nicht lesen.'))
+            self.home()
+            self.enter('gallery', L.HOME_GALLERY, 'Gallery')
+
     def scan_bonds(self):
         self.log(T('Bonds ...'))
         self.home()
@@ -2241,6 +2286,7 @@ class Scanner(Bot):
         m = re.search(r'(\d{1,3})\s*/\s*(\d{1,3})', t)
         if m:
             self.gallery_players = int(m.group(1))
+        self.read_gallery_value()
         img = self.enter('bond_gallery', L.GAL_BOND, 'Bond')
         m = re.search(r'(\d{1,3})\s*/\s*(\d{1,3})', ' '.join(b.text for b in self.ocr(img, L.BG_UNLOCKED)))
         unlocked = int(m.group(1)) if m else None
@@ -2600,6 +2646,9 @@ class Scanner(Bot):
                 self.save(d)
         if 'bonds' in parts:
             r = self.part(T('Bonds'), self.scan_bonds)
+            if self.gallery_value is not None:
+                d['gallery'] = self.gallery_value
+                self.save(d)
             if r and (r[0] or r[1]):
                 d['collections'] = {str(k): v for k, v in sorted(r[0].items())}
                 d['bonds'] = {str(k): v for k, v in sorted(r[1].items()) if v}

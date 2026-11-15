@@ -28,7 +28,7 @@ LOADOUTS = os.path.join(HERE, 'loadouts')
 LOGS = os.path.join(HERE, 'logs')
 SCANS = os.path.join(HERE, 'scans')
 OLD_FOLDERS = {'aufstellungen': LOADOUTS, 'protokolle': LOGS}     # Namen der ersten Version (1.0)
-VERSION = '1.17 (15.11.2026)'
+VERSION = '1.18 (15.11.2026)'
 
 
 class Log:
@@ -456,6 +456,8 @@ def scan_summary(d):
         out.append(T('{n} verschiedene Memories', n=len(d['memories'])))
     if 'collections' in d:
         out.append(T('{n} Sammlungs-Bonds, {b} Team-Bonds', n=len(d['collections']), b=len(d.get('bonds') or {})))
+    if d.get('gallery') is not None:
+        out.append(T('Player Gallery: Collection Value {n}', n=d['gallery']))
     if 'cheers' in d:
         out.append(T('{n} Cheers', n=len(d['cheers'].get('list') or [])))
     if 'coaches' in d:
