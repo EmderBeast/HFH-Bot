@@ -249,11 +249,12 @@ def classify(boxes) -> tuple[str, dict]:
     return 'other', info
 
 
-# Fenster am Zielfeld: zwei Knöpfe. Links beendet den Lauf sofort (die übrigen Action Points verfallen), rechts geht
-# es weiter. Die Namen der Knöpfe sind noch nicht bekannt; diese Wörter deuten auf „weiter“ bzw. „beenden“.
-GOAL_WORDS = ('finish', 'goal', 'reached', 'endexercis', 'endrun', 'finishline')
-GO_ON = ('continue', 'keepgoing', 'keepexercis', 'goon', 'carryon', 'notyet', 'keeprunning')
-STOP = ('endexercis', 'endrun', 'finishnow', 'finishexercis', 'endnow', 'leave', 'quit')
+# Fenster am Zielfeld („RESULT“): links „Claim“ beendet den Lauf sofort (die übrigen Action Points verfallen), rechts
+# „Skip“ läuft weiter (Bildschirmfoto vom 15.11.2026). Weitere Wörter, falls sich die Knöpfe einmal ändern.
+GOAL_WORDS = ('finish', 'goal', 'reached', 'endexercis', 'endrun', 'finishline', 'result', 'exercisingends',
+              'claimingrewards', 'additionalrewards')
+GO_ON = ('skip', 'continue', 'keepgoing', 'keepexercis', 'goon', 'carryon', 'notyet', 'keeprunning')
+STOP = ('claim', 'endexercis', 'endrun', 'finishnow', 'finishexercis', 'endnow', 'leave', 'quit')
 
 
 def goal_buttons(boxes):
