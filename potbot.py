@@ -556,6 +556,13 @@ def exercise_menu():
     log = Log(os.path.join(LOGS, f'{stamp}_exercising.txt'))
     from bot import BotError
     from device import DeviceError, SafetyStop
+    # neu laden: so gilt eine neue exercise.py auch ohne Neustart des Bots
+    import importlib
+    import exboard
+    import exercise
+    import exmap
+    for mod in (exboard, exmap, exercise):
+        importlib.reload(mod)
     from exercise import Exerciser
     log(T('HFH-Bot {version} · Exercising', version=VERSION))
     ex = None
