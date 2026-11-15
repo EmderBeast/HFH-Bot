@@ -296,7 +296,7 @@ def goal_buttons(boxes):
 # Der Bot öffnet eine Karte nur einmal, um ihren Namen zu lesen, und speichert ihr Symbol in bilder/karten/
 # (Name_Nummer.png). Danach erkennt er sie am Symbol, auch in späteren Läufen, und öffnet sie nur noch zum Benutzen.
 CARD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bilder', 'karten')
-NEVER_CARDS = ('reverse', 'hitchhiking')            # benutzt der Bot nie
+NEVER_CARDS = ('reverse',)                          # benutzt der Bot nie
 _CARDS = None
 
 
@@ -709,10 +709,23 @@ class Exerciser:
     def map_ok(self):
         return self.tracker is not None and self.tracker.pos is not None
 
+    def last_move(self):
+        """Letzter Wurf (1 Action Point oder weniger): Karten, die danach verfallen würden, jetzt noch benutzen."""
+        return self.ap is not None and self.ap <= 1
+
+    def best_steps(self):
+        if self.map_ok():
+            opts = self.tracker.landing_options(after_goal=self.goal_reached)
+            if opts:
+                return max(opts, key=lambda k: opts[k])
+        return 3
+
     def card_wanted(self, n):
         """Würde der Bot die Karte mit diesem Namen (ohne Leerzeichen, klein) jetzt benutzen?"""
         if 'stepssetter' in n:
-            return bool(self.want_steps)
+            return bool(self.want_steps) or self.last_move()
+        if 'hitchhiking' in n:
+            return self.last_move()             # Teleport: vor dem letzten Wurf noch mitnehmen (Nutzer, 15.11.2026)
         if 'energycandy' in n:
             return self.want_candy()
         if 'sportsdrink' in n:
@@ -768,17 +781,13 @@ class Exerciser:
             learn_card(n, self.card_try[2])  # Symbol merken: nächstes Mal ohne Öffnen erkennen
         later = False                      # nicht jetzt, aber vielleicht in einer späteren Runde
         steps_card = 'stepssetter' in n or 'choosethenumber' in norm(text)
-        if steps_card:
-            good = bool(self.want_steps)
-            later = not good
-        elif 'energycandy' in n:
-            good = self.want_candy()
-            later = not good
-        elif 'sportsdrink' in n:
-            good = self.want_double or (self.ap is not None and self.ap <= 2)
-            later = not good
-        elif 'vitaminc' in n or 'jello' in n:
-            good = (self.drain > 0 and not self.goal_reached) or self.heavy > 0
+        if steps_card and self.last_move() and not self.want_steps:
+            self.want_steps = self.best_steps()
+        key = 'stepssetter' if steps_card else n
+        if key in NEVER_CARDS:
+            good = False
+        elif key in ('stepssetter', 'energycandy', 'sportsdrink', 'hitchhiking') or 'vitaminc' in key or 'jello' in key:
+            good = self.card_wanted(key)
             later = not good
         else:
             good = n in GOOD_CARDS or any(p in norm(text) for p in GOOD_PARTS)
