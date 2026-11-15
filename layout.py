@@ -111,6 +111,12 @@ MI_TIER = (1060, 430, 1590, 620)
 # Gallery
 GAL_BOND = (890, 479)
 GAL_PLAYER = (1180, 480, 1400, 600)    # "Player 136/146"
+# Player Gallery -> Gallery Rewards: Collection Value (Bilder vom 15.11.2026, 1.18)
+GAL_PLAYER_TAP = (1263, 516)           # Kugel „Player“ in der Gallery
+PG_REWARDS = (1202, 100)               # Geschenk „Gallery Rewards“ oben rechts
+PG_VALUES = (365, 180, 600, 760)       # linke Spalte im Fenster: „Collection Value 8040/8050“ je Zeile
+PG_POPUP = (340, 120, 1290, 780)       # das ganze Fenster
+PG_CLOSE = (1223, 135)                 # X oben rechts im Fenster
 BG_CARDS = (80, 140, 1560, 760)        # Fotos der Bonds in der Bond Gallery
 BG_UNLOCKED = (1270, 60, 1560, 140)    # "Unlocked Bonds 142/171"
 BG_SCHOOLS = (0, 740, 1600, 850)       # Reiter der Schulen unten ("KARASUNO HIGH SCHOOL" ...)
