@@ -20,6 +20,7 @@ import re
 import time
 
 import difflib
+import glob
 
 import cv2
 import numpy as np
@@ -281,6 +282,35 @@ def goal_buttons(boxes):
     return None
 
 
+# ---------------------------------------------------------------- Karten an ihrem Symbol erkennen
+# Der Bot öffnet eine Karte nur einmal, um ihren Namen zu lesen, und speichert ihr Symbol in bilder/karten/
+# (Name_Nummer.png). Danach erkennt er sie am Symbol, auch in späteren Läufen, und öffnet sie nur noch zum Benutzen.
+CARD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bilder', 'karten')
+NEVER_CARDS = ('reverse', 'hitchhiking')            # benutzt der Bot nie
+_CARDS = None
+
+
+def card_library():
+    global _CARDS
+    if _CARDS is None:
+        _CARDS = []
+        for p in sorted(glob.glob(os.path.join(CARD_DIR, '*.png'))):
+            im = cv2.imread(p, cv2.IMREAD_GRAYSCALE)
+            if im is not None:
+                _CARDS.append((os.path.basename(p).rsplit('_', 1)[0], im))
+    return _CARDS
+
+
+def learn_card(name, icon):
+    lib = card_library()
+    if not name or sum(1 for n, _ in lib if n == name) >= 3:
+        return
+    os.makedirs(CARD_DIR, exist_ok=True)
+    k = sum(1 for n, _ in lib if n == name)
+    cv2.imwrite(os.path.join(CARD_DIR, f'{name}_{k}.png'), icon)
+    lib.append((name, icon))
+
+
 # ---------------------------------------------------------------- Story-Fragen aus den Spieldaten
 # exercising_fragen.json: alle 48 Fragen (de/en) mit der Belohnung für A und B (aus treasureevent, 12.11.2026).
 # r = [Belohnung A, Menge A, Belohnung B, Menge B]; 108 = Diamanten, 100 = Gold, 7010000xx = Karten.
@@ -418,6 +448,26 @@ class Exerciser:
         sx, sy = w / REF_W, h / REF_H
         c = img[int((y - r) * sy):int((y + r) * sy), int((x - r) * sx):int((x + r) * sx)]
         return cv2.resize(c, (2 * r, 2 * r), interpolation=cv2.INTER_AREA)
+
+    def icon(self, img, i, pad=0):
+        """Graues Bild vom Symbol der Karte in Platz i (Mitte der Karte, ohne Rand und Hintergrund)."""
+        x, y = CARD_SLOTS[i]
+        h, w = img.shape[:2]
+        sx, sy = w / REF_W, h / REF_H
+        r = 36 + pad
+        c = img[int((y - 18 - r) * sy):int((y - 18 + r) * sy), int((x - r) * sx):int((x + r) * sx)]
+        c = cv2.resize(c, (2 * r, 2 * r), interpolation=cv2.INTER_AREA)
+        return cv2.cvtColor(c, cv2.COLOR_BGR2GRAY)
+
+    def card_name(self, img, i):
+        """Name der Karte in Platz i nach ihrem Symbol (gelernt aus früheren Läufen, bilder/karten), sonst None."""
+        big = self.icon(img, i, pad=8)
+        best, name = 0.0, None
+        for nm, tpl in card_library():
+            r = float(cv2.matchTemplate(big, tpl, cv2.TM_CCOEFF_NORMED).max())
+            if r > best:
+                best, name = r, nm
+        return name if best >= 0.78 else None
 
     def same_card(self, a, b):
         return float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean()) < 12
@@ -686,10 +736,10 @@ class Exerciser:
             c = self.crop(img, x, y)
             if any(self.same_card(c, s) for s in self.skip_cards + self.round_skip):
                 continue
-            known = next((nm for kc, nm in self.known_cards if self.same_card(c, kc)), None)
-            if known and not self.card_wanted(known):
-                continue                    # Karte schon bekannt und jetzt nicht nötig: nicht öffnen
-            self.card_try = (i, c)
+            known = self.card_name(img, i) or next((nm for kc, nm in self.known_cards if self.same_card(c, kc)), None)
+            if known and (known in NEVER_CARDS or not self.card_wanted(known)):
+                continue                    # Karte am Symbol erkannt und jetzt nicht nötig: nicht öffnen
+            self.card_try = (i, c, self.icon(img, i))
             self.card_looks += 1
             self.tap(x, y, 'Karte ansehen', wait=1.0)
             return True
@@ -704,6 +754,8 @@ class Exerciser:
                 title = max(above, key=lambda b: b.cy).text
         text = ' '.join(b.text for b in boxes if own and own[0].cy - 60 < b.cy < own[0].cy + 120)
         n = norm(title)
+        if n and self.card_try and len(self.card_try) > 2:
+            learn_card(n, self.card_try[2])  # Symbol merken: nächstes Mal ohne Öffnen erkennen
         later = False                      # nicht jetzt, aber vielleicht in einer späteren Runde
         steps_card = 'stepssetter' in n or 'choosethenumber' in norm(text)
         if steps_card:
