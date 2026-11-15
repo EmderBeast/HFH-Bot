@@ -232,7 +232,7 @@ def classify(boxes) -> tuple[str, dict]:
             info['left'] = int(m.group(1))
             info['max'] = int(m.group(2))
         return 'courses', info
-    if find(boxes, 'Claim & Exit') or has('claimexit'):
+    if find(boxes, 'Claim & Exit') or has('claimexit') or has('exitexercising'):
         return 'finish', info
     if has('taptoclose'):
         return 'obtained', info
@@ -1007,8 +1007,14 @@ class Exerciser:
                 if prev != 'finish':
                     self.done += 1
                 self.log(T('FINISH: Lauf {n} geschafft. „Claim & Exit“', n=self.done))
-                self.tap(*next(((b.cx, b.cy) for b in boxes if 'claim' in b.n), (800, 814)), 'Claim & Exit',
-                         expect='claim', wait=3.0)
+                # mit Ziel: „Claim & Exit“; ohne Ziel: „Exit Exercising“ (die Belohnung ist dann schon im Inventar)
+                btn = next((b for b in boxes if 'claimexit' in b.n or 'exitexercising' in b.n), None)
+                if btn is None:
+                    btn = next((b for b in boxes if 'claim' in b.n), None)
+                if btn is not None:
+                    self.tap(btn.cx, btn.cy, 'Claim & Exit', expect='exit', wait=3.0)
+                else:
+                    self.other += 1
             elif state == 'obtained':
                 self.stats['items'] += 1
                 b = next(b for b in boxes if 'taptoclose' in b.n)
