@@ -384,6 +384,7 @@ class Exerciser:
         self.card_try = None                # (Platz, Ausschnitt) der Karte, die er gerade geöffnet hat
         self.tried = set()                  # Plätze, die er in dieser Runde schon angesehen hat
         self.card_looks = 0                 # so oft hat er in dieser Runde eine Karte geöffnet
+        self.known_cards = []               # (Bild, Name) von Karten, die er für später aufhebt
         self.round_skip = []                # Karten, die er nur in dieser Runde nicht will (Sports Drink, Jell-O)
         self.plan_round = None
         self.want_double = False
@@ -495,6 +496,7 @@ class Exerciser:
         self.heavy = 0
         self.tracker = None
         self.entered = self.course
+        self.known_cards = []
         return True
 
     def on_board(self, img, info):
@@ -540,7 +542,8 @@ class Exerciser:
                 if self.way in ('ziel', 'einmal') and not self.goal_reached:
                     ap = info.get('ap')
                     # je weniger Action Points, desto wichtiger der Weg zum Ziel (20 Diamanten)
-                    w = 1.5 if ap is None or ap > 8 else 4.0 if ap > 4 else 7.0
+                    # erst zum Ziel (Nutzer: vom Start aus in Richtung der Fahne): klar stärker als ein Feld Unterschied
+                    w = 4.0 if ap is None or ap > 8 else 6.0 if ap > 4 else 8.0
                 elif self.way == 'meiden':
                     w = -3.0
                 rated = None
@@ -646,6 +649,18 @@ class Exerciser:
     def map_ok(self):
         return self.tracker is not None and self.tracker.pos is not None
 
+    def card_wanted(self, n):
+        """Würde der Bot die Karte mit diesem Namen (ohne Leerzeichen, klein) jetzt benutzen?"""
+        if 'stepssetter' in n:
+            return bool(self.want_steps)
+        if 'energycandy' in n:
+            return self.want_candy()
+        if 'sportsdrink' in n:
+            return self.want_double or (self.ap is not None and self.ap <= 2)
+        if 'vitaminc' in n or 'jello' in n:
+            return (self.drain > 0 and not self.goal_reached) or self.heavy > 0
+        return True
+
     def want_candy(self):
         """Energy Candy (8 Schritte ohne Action Points): wenn voraus viele schlechte Felder liegen, wenn die Action
         Points fürs Ziel knapp werden (Ziel noch nicht erreicht, höchstens 5 AP) oder ganz am Ende (sonst verfällt sie)."""
@@ -671,6 +686,9 @@ class Exerciser:
             c = self.crop(img, x, y)
             if any(self.same_card(c, s) for s in self.skip_cards + self.round_skip):
                 continue
+            known = next((nm for kc, nm in self.known_cards if self.same_card(c, kc)), None)
+            if known and not self.card_wanted(known):
+                continue                    # Karte schon bekannt und jetzt nicht nötig: nicht öffnen
             self.card_try = (i, c)
             self.card_looks += 1
             self.tap(x, y, 'Karte ansehen', wait=1.0)
@@ -717,6 +735,8 @@ class Exerciser:
         self.log(T('  Karte „{name}“: bleibt liegen', name=title or '?'))
         if self.card_try:
             (self.round_skip if later else self.skip_cards).append(self.card_try[1])
+            if later:
+                self.known_cards.append((self.card_try[1], n))
         self.card_try = None
         # schließen: dieselbe Karte noch einmal antippen, sonst daneben aufs Brett
         if slot is not None:
