@@ -2,8 +2,9 @@
 
 Was der Bot tippt (und sonst nichts):
   - im Fenster „Exercising Courses“: „Continue“ oder „Enter“ beim gewählten Kurs, solange „Exercising Left“ über 0 ist
-  - auf dem Brett: „GO!“ (würfeln), an Abzweigungen den gelben Pfeil, der am weitesten von der Zielfahne weg zeigt
-    (am Ziel endet der Lauf, und die übrigen Action Points verfallen), auf Wunsch die Karten unten links
+  - auf dem Brett: „GO!“ (würfeln), an Abzweigungen erst den gelben Pfeil Richtung Zielfahne; am Zielfeld den rechten
+    Knopf (weiterlaufen; der linke beendet den Lauf, und die übrigen Action Points verfallen), danach weg vom Ziel;
+    auf Wunsch die Karten unten links
   - bei Karten: „Use“ nur für Karten aus der Liste unten (Energy Candy, Lightweight Runners, Sports Drink, Multiplier)
   - „Story“: Antwort A oder B; „Event“: „Complete“; „Obtained“: „Tap to close“; „FINISH“: „Claim & Exit“
   - „Shop“: immer „Don't Buy“. Der Bot kauft nie etwas, auch nicht mit Action Points.
@@ -230,6 +231,8 @@ def classify(boxes) -> tuple[str, dict]:
         return 'card', info
     if any(n == 'story' or n.startswith('story') for n in ns):
         return 'story', info
+    if 'ap' in info and goal_buttons(boxes):
+        return 'goal', info
     if any(n == 'complete' or n == 'event' for n in ns):
         return 'event', info
     if has('movesteps'):
@@ -239,6 +242,39 @@ def classify(boxes) -> tuple[str, dict]:
     if has('freetime'):
         return 'freetime', info
     return 'other', info
+
+
+# Fenster am Zielfeld: zwei Knöpfe. Links beendet den Lauf sofort (die übrigen Action Points verfallen), rechts geht
+# es weiter. Die Namen der Knöpfe sind noch nicht bekannt; diese Wörter deuten auf „weiter“ bzw. „beenden“.
+GOAL_WORDS = ('finish', 'goal', 'reached', 'endexercis', 'endrun', 'finishline')
+GO_ON = ('continue', 'keepgoing', 'keepexercis', 'goon', 'carryon', 'notyet', 'keeprunning')
+STOP = ('endexercis', 'endrun', 'finishnow', 'finishexercis', 'endnow', 'leave', 'quit')
+
+
+def goal_buttons(boxes):
+    """(beenden, weiter) im Fenster am Zielfeld, sonst None. Weiter ist ein Knopf mit „Continue“ o. ä.; sonst der
+    rechte von zwei Knöpfen in derselben Zeile, wenn im Fenster von Ziel/Finish die Rede ist."""
+    ns = [b.n for b in boxes]
+    if any('claimexit' in n or n.startswith('story') for n in ns):
+        return None
+    btn = [b for b in boxes if 560 < b.cy < 840 and 150 < b.cx < 1450 and 2 <= len(b.n) <= 22
+           and not b.n.startswith(('auto', 'round', 'storage'))]
+    pairs = []
+    for i, l in enumerate(btn):
+        for r in btn[i + 1:]:
+            if abs(l.cy - r.cy) < 25:
+                l2, r2 = sorted((l, r), key=lambda b: b.cx)
+                if l2.cx < 800 < r2.cx:
+                    pairs.append((l2, r2))
+    talk = any(w in n for n in ns for w in GOAL_WORDS)
+    for left, right in pairs:
+        if any(w in right.n for w in GO_ON) or any(w in left.n for w in STOP):
+            return left, right
+        if any(w in left.n for w in GO_ON) or any(w in right.n for w in STOP):
+            return right, left
+        if talk:
+            return left, right
+    return None
 
 
 def story_options(boxes):
@@ -263,13 +299,15 @@ def story_options(boxes):
 # ---------------------------------------------------------------- Bot
 
 class Exerciser:
-    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None, way='meiden'):
+    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None, way='einmal'):
         self.dev, self.reader, self.log = dev, reader, log
         dev.reader = reader
         self.course = max(1, min(4, int(course or 4)))
         self.story = story if story in ('a', 'b', 'zufall') else 'a'
         self.cards = cards
-        self.way = way if way in ('meiden', 'ziel', 'zufall') else 'meiden'   # an Abzweigungen: weg vom Ziel, hin, zufällig
+        # an Abzweigungen: einmal = erst zum Ziel, dort weiterlaufen, danach weg vom Ziel; meiden; ziel; zufall
+        self.way = way if way in ('einmal', 'meiden', 'ziel', 'zufall') else 'einmal'
+        self.goal_reached = False
         self.to_goal = self.way != 'zufall'   # Zielrichtung lesen
         self.last_goal = None               # zuletzt gesehene Richtung zum Ziel
         self.runs = runs                    # 0 = bis „Exercising Left“ 0 ist
@@ -374,6 +412,7 @@ class Exerciser:
         self.skip_cards = []
         self.go_at_zero = False
         self.last_goal = None
+        self.goal_reached = False
         return True
 
     def on_board(self, img, info):
@@ -400,12 +439,13 @@ class Exerciser:
             elif self.last_goal:
                 goal = (self.last_goal[0], self.last_goal[1] + T(', von vorhin'), None)
             if self.to_goal:
-                (x, y), g = pick_arrow(img, arrows, goal, away=self.way == 'meiden')
+                away = self.way == 'meiden' or (self.way == 'einmal' and self.goal_reached)
+                (x, y), g = pick_arrow(img, arrows, goal, away=away)
             else:
                 (x, y), g = random.choice(arrows), None
             if g:
                 self.log(T('  Abzweigung: {n} Wege, nehme den {how} (Ziel bei {deg}°, {src})', n=len(arrows),
-                           how=T('weg vom Ziel') if self.way == 'meiden' else T('Richtung Ziel'),
+                           how=T('weg vom Ziel') if away else T('Richtung Ziel'),
                            deg=round(np.degrees(g[0])), src=g[1]))
             else:
                 self.log(T('  Abzweigung: {n} Wege, nehme ({x}, {y})', n=len(arrows), x=x, y=y))
@@ -476,6 +516,19 @@ class Exerciser:
         if classify(self.reader.read(self.snap()))[0] == 'card':
             self.tap(800, 690, 'Karten-Fenster schließen', wait=0.8)
 
+    def on_goal(self, boxes):
+        """Am Zielfeld: weiterlaufen, damit die übrigen Action Points nicht verfallen."""
+        bt = goal_buttons(boxes)
+        if not bt:
+            self.other += 1
+            return
+        stop, go = bt
+        txt = ' '.join(b.text for b in boxes if 120 < b.cy < 560 and 150 < b.cx < 1450)
+        self.log(T('  ZIEL erreicht: {t} | Knöpfe „{a}“ / „{b}“ → „{b}“ (weiterlaufen)', t=txt[:100], a=stop.text, b=go.text))
+        self.shot('ziel')
+        self.goal_reached = True
+        self.tap(go.cx, go.cy, 'Weiterlaufen', wait=1.5)
+
     def on_story(self, boxes):
         opt = story_options(boxes)
         if not opt:
@@ -518,7 +571,8 @@ class Exerciser:
         self.log(T('Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}, Abzweigungen {way}.',
                    course=COURSE_NAMES[self.course - 1], story=self.story.upper() if self.story != 'zufall' else T('zufällig'),
                    cards=T('ja') if self.cards else T('nein'), runs=self.runs or T('alle übrigen'),
-                   way={'meiden': T('weg vom Ziel'), 'ziel': T('Richtung Ziel')}.get(self.way, T('zufällig'))))
+                   way={'meiden': T('weg vom Ziel'), 'ziel': T('Richtung Ziel'),
+                        'einmal': T('erst zum Ziel, dort weiter, dann weg')}.get(self.way, T('zufällig'))))
         last_state = None
         while True:
             img = self.snap()
@@ -547,6 +601,8 @@ class Exerciser:
                 self.on_card(boxes)
             elif state == 'story':
                 self.on_story(boxes)
+            elif state == 'goal':
+                self.on_goal(boxes)
             elif state == 'event':
                 self.on_event(boxes)
             elif state == 'moving':
