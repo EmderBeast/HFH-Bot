@@ -87,7 +87,7 @@ EXERCISING-BOT (Free Time > Exercising)
    "Claim & Exit" die Belohnung ab. Bei "Exercising Left: 0" hört er auf.
 An Abzweigungen liest er die Felder auf jedem Weg (Story und Geschenk = Diamanten, Pfeil = +1 Action Point;
 Bananenschale = -1 Action Point, Fragezeichen = Karte weg, Hand mit Schweiß = Stamina Drain, Hantel = jeder Wurf kostet
-2 Action Points) und rechnet mit
+2 Action Points, Wirbel = zufällige Richtung) und rechnet mit
 den möglichen Würfen aus, welcher Weg am meisten bringt. Vor dem Ziel zieht ihn das Ziel umso stärker an, je
 weniger Action Points übrig sind. Karten: Lightweight Runners immer; Sports Drink, wenn gute Felder erst 4 bis 6
 Felder weit liegen; Energy Candy bei vielen schlechten Feldern voraus, wenn die Action Points fürs Ziel knapp
