@@ -35,6 +35,7 @@ VALUE = {
     'leer': 0.0,
     'start': 0.0,
     'ziel': 20.0,           # FINISH: einmal 20 Diamanten (danach 0)
+    'huetchen': -20.0,      # Hütchen (Hindernis): -5 Action Points (Spieldaten; Lauf vom 15.11.2026: die letzten 5 AP weg)
     'unbekannt': -6.0,      # Symbol, das der Bot nicht kennt (z. B. das Hütchen: -5 Action Points laut Spieldaten)
     'banane': -4.0,         # kostet einen Action Point
     'schweiss': -6.0,       # Stamina Drain vor dem Ziel; nach dem Ziel 0
