@@ -30,7 +30,7 @@ VALUE = {
     'frage': -2.0,          # nimmt eine zufällige Karte aus dem Inventar und löscht sie (Nutzer, 15.11.2026)
     'shop': 0.0,
     'pfeil': 4.0,           # +1 Action Point (Nutzer, 15.11.2026)
-    'hantel': 0.0,
+    'hantel': -6.0,         # jeder Wurf kostet 2 statt 1 Action Point (Nutzer, 15.11.2026)
     'wirbel': 0.0,
     'leer': 0.0,
     'start': 0.0,
