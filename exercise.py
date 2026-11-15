@@ -624,6 +624,8 @@ class Exerciser:
                     # je weniger Action Points, desto wichtiger der Weg zum Ziel (20 Diamanten)
                     # erst zum Ziel (Nutzer: vom Start aus in Richtung der Fahne): klar stärker als ein Feld Unterschied
                     w = 4.0 if ap is None or ap > 8 else 6.0 if ap > 4 else 8.0
+                    if self.goal_tight(ap):
+                        w = 25.0                # Ziel wird knapp: nur noch der kürzeste Weg zählt
                 elif self.way == 'meiden':
                     w = -3.0
                 rated = None
@@ -672,6 +674,9 @@ class Exerciser:
                 except Exception as e:  # nur für die Karten, darf den Lauf nicht stoppen
                     self.want_double, self.bad_ahead, why = False, False, str(e)
                 self.ap = info.get('ap')
+                if self.goal_tight():
+                    self.want_double = True     # doppelte Schritte bringen schneller zum Ziel
+                    why += T(', Ziel {d} Felder bei {ap} AP: knapp', d=self.goal_dist(), ap=self.ap)
                 self.want_steps = None
                 if self.map_ok():
                     opts = self.tracker.landing_options(after_goal=self.goal_reached)
@@ -805,6 +810,20 @@ class Exerciser:
             return (self.drain > 0 and not self.goal_reached) or self.heavy > 0
         return True
 
+    def goal_dist(self):
+        t = self.tracker
+        if not self.map_ok() or not t.goal:
+            return None
+        return t.course.dist_from(t.pos).get(t.goal)
+
+    def goal_tight(self, ap=None):
+        """Reichen die Action Points gerade noch fürs Ziel? Ein Wurf bringt im Schnitt 2 Felder; Reserve 3 Würfe."""
+        ap = self.ap if ap is None else ap
+        d = self.goal_dist()
+        if self.goal_reached or self.way not in ('einmal', 'ziel') or d is None or ap is None:
+            return False
+        return d > 2 * (ap - 3)
+
     def want_candy(self):
         """Energy Candy (8 Schritte ohne Action Points): wenn voraus viele schlechte Felder liegen, wenn die Action
         Points fürs Ziel knapp werden (Ziel noch nicht erreicht, höchstens 5 AP) oder ganz am Ende (sonst verfällt sie)."""
@@ -813,6 +832,8 @@ class Exerciser:
             return True
         if ap is not None and ap <= 5 and not self.goal_reached and self.way in ('einmal', 'ziel'):
             return True
+        if self.goal_tight():
+            return True                         # 8 Felder ohne Action Points Richtung Ziel
         return ap is not None and ap <= 1
 
     def try_card(self, img) -> bool:
