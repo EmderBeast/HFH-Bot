@@ -2,7 +2,8 @@
 
 Was der Bot tippt (und sonst nichts):
   - im Fenster „Exercising Courses“: „Continue“ oder „Enter“ beim gewählten Kurs, solange „Exercising Left“ über 0 ist
-  - auf dem Brett: „GO!“ (würfeln), an Abzweigungen einen der gelben Pfeile, auf Wunsch die Karten unten links
+  - auf dem Brett: „GO!“ (würfeln), an Abzweigungen den gelben Pfeil, der am ehesten zur Zielfahne zeigt, auf Wunsch
+    die Karten unten links
   - bei Karten: „Use“ nur für Karten aus der Liste unten (Energy Candy, Lightweight Runners, Sports Drink, Multiplier)
   - „Story“: Antwort A oder B; „Event“: „Complete“; „Obtained“: „Tap to close“; „FINISH“: „Claim & Exit“
   - „Shop“: immer „Don't Buy“. Der Bot kauft nie etwas, auch nicht mit Action Points.
@@ -87,6 +88,111 @@ def yellow_arrows(img: np.ndarray) -> list[tuple[int, int]]:
     return out
 
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+_TPL = {}
+
+
+def _tpl(name):
+    if name not in _TPL:
+        _TPL[name] = cv2.imread(os.path.join(HERE, 'bilder', name))
+    return _TPL[name]
+
+
+def _match(im, tpl, scales):
+    best = (0.0, None, 1.0)
+    if tpl is None:
+        return best
+    for sc in scales:
+        t = cv2.resize(tpl, None, fx=sc, fy=sc)
+        r = cv2.matchTemplate(im, t, cv2.TM_CCOEFF_NORMED)
+        _, m, _, loc = cv2.minMaxLoc(r)
+        if m > best[0]:
+            best = (float(m), (loc[0] + t.shape[1] // 2, loc[1] + t.shape[0] // 2), sc)
+    return best
+
+
+def _pointer(im, c):
+    """Richtung der Spitze am Kreis mit der Zielfahne (Grad, Bildschirm: 0 = rechts, 90 = unten). Nur Bildpunkte in der
+    Farbe des Rings, die mit dem Ring zusammenhängen (sonst stört Sand in derselben Farbe)."""
+    x0, y0 = max(0, c[0] - 110), max(0, c[1] - 110)
+    sub = im[y0:c[1] + 110, x0:c[0] + 110].astype(int)
+    cx, cy = c[0] - x0, c[1] - y0
+    hh, ww = sub.shape[:2]
+    yy, xx = np.mgrid[0:hh, 0:ww]
+    d = np.hypot(xx - cx, yy - cy)
+    ring = (d > 50) & (d < 58)
+    med = np.median(sub[ring], axis=0)
+    close = ((np.abs(sub - med).sum(2) < 70) & (d < 100)).astype(np.uint8)
+    if not (ring & (close > 0)).any():
+        return None
+    _, lab = cv2.connectedComponents(close)
+    rl = np.bincount(lab[ring & (close > 0)]).argmax()
+    sel = (lab == rl) & (d > 66)
+    if sel.sum() < 15:
+        return None
+    ang = np.arctan2(yy[sel] - cy, xx[sel] - cx)
+    return float(np.arctan2(np.sin(ang).mean(), np.cos(ang).mean()))
+
+
+def player_spot(img) -> tuple[int, int]:
+    """Mitte des Felds, auf dem die Figur steht: ihre orangen Haare plus 150 px nach unten. An Abzweigungen steht die
+    Kamera so, dass die Haare bei etwa (800, 276) sind (Video: 18 von 19 Abzweigungen)."""
+    im = cv2.resize(img, (REF_W, REF_H), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    m = ((hsv[..., 0] >= 5) & (hsv[..., 0] <= 16) & (hsv[..., 1] >= 120) & (hsv[..., 2] >= 170)).astype(np.uint8)
+    m[:110] = 0
+    m[760:] = 0
+    m[:, :230] = 0
+    m[:, 1330:] = 0
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    n, _, st, c = cv2.connectedComponentsWithStats(m)
+    if n >= 2:
+        i = 1 + int(np.argmax(st[1:, 4]))
+        if st[i, 4] > 3000:
+            return int(c[i][0]) + 5, int(c[i][1]) + 150
+    return 805, 426
+
+
+def goal_dir(img):
+    """Richtung zum Ziel (Winkel im Bild) und woher sie kommt: 'fahne' (Zielfahne auf dem Brett zu sehen) oder
+    'anzeige' (Kreis mit Fahne am Rand, seine Spitze zeigt zum Ziel). None, wenn keins von beiden zu sehen ist."""
+    im = cv2.resize(img, (REF_W, REF_H), interpolation=cv2.INTER_AREA)
+    m, c, _ = _match(im, _tpl('ziel_anzeige.png'), (1.0,))
+    if m > 0.8:
+        a = _pointer(im, c)
+        if a is not None:
+            return a, 'anzeige', c
+    m, c, sc = _match(im, _tpl('ziel_fahne.png'), (0.8, 0.9, 1.0, 1.1, 1.2))
+    if m > 0.7:
+        base = (c[0] - 43 * sc, c[1] + 143 * sc)         # Fuß der Fahnenstange = Zielfeld
+        px, py = player_spot(img)
+        return float(np.arctan2(base[1] - py, base[0] - px)), 'fahne', (int(base[0]), int(base[1]))
+    return None
+
+
+def merge_arrows(lists):
+    """Pfeile aus mehreren Bildern zusammenlegen (sie pulsieren, nicht jeder ist auf jedem Bild zu sehen)."""
+    out = []
+    for lst in lists:
+        for a in lst:
+            if all((a[0] - o[0]) ** 2 + (a[1] - o[1]) ** 2 > 60 ** 2 for o in out):
+                out.append(a)
+    return out
+
+
+def pick_arrow(img, arrows, g=None):
+    """Der Pfeil, der am ehesten zum Ziel zeigt. Ohne Ziel: zufällig."""
+    g = g or goal_dir(img)
+    if not g or len(arrows) < 2:
+        return random.choice(arrows), None
+    px, py = player_spot(img)
+    ga = g[0]
+
+    def score(a):
+        return np.cos(np.arctan2(a[1] - py, a[0] - px) - ga)
+    return max(arrows, key=score), g
+
+
 def moving(a: np.ndarray, b: np.ndarray) -> float:
     """Anteil (in %) der Bildpunkte im Brett, die sich zwischen zwei Bildern deutlich geändert haben."""
     def g(img):
@@ -156,12 +262,14 @@ def story_options(boxes):
 # ---------------------------------------------------------------- Bot
 
 class Exerciser:
-    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None):
+    def __init__(self, dev, reader, log=print, course=4, story='a', cards=True, runs=0, debug_dir=None, to_goal=True):
         self.dev, self.reader, self.log = dev, reader, log
         dev.reader = reader
         self.course = max(1, min(4, int(course or 4)))
         self.story = story if story in ('a', 'b', 'zufall') else 'a'
         self.cards = cards
+        self.to_goal = to_goal              # an Abzweigungen Richtung Zielfahne
+        self.last_goal = None               # zuletzt gesehene Richtung zum Ziel
         self.runs = runs                    # 0 = bis „Exercising Left“ 0 ist
         self.debug_dir = debug_dir
         self.done = 0
@@ -263,6 +371,7 @@ class Exerciser:
         self.round = None
         self.skip_cards = []
         self.go_at_zero = False
+        self.last_goal = None
         return True
 
     def on_board(self, img, info):
@@ -275,11 +384,35 @@ class Exerciser:
             return                          # inzwischen ist ein Fenster aufgegangen (Story, Shop ...)
         arrows = yellow_arrows(img)
         if arrows:
-            x, y = random.choice(arrows)
-            self.log(T('  Abzweigung: {n} Wege, nehme ({x}, {y})', n=len(arrows), x=x, y=y))
+            # die Pfeile pulsieren und die Zielanzeige blinkt: ein paar Bilder ansehen
+            lists, goal = [arrows], goal_dir(img) if self.to_goal else None
+            for _ in range(4):
+                time.sleep(0.25)
+                im2 = self.snap()
+                lists.append(yellow_arrows(im2))
+                if self.to_goal and not goal:
+                    goal = goal_dir(im2)
+            arrows = merge_arrows(lists)
+            if goal:
+                self.last_goal = goal
+            elif self.last_goal:
+                goal = (self.last_goal[0], self.last_goal[1] + T(', von vorhin'), None)
+            if self.to_goal:
+                (x, y), g = pick_arrow(img, arrows, goal)
+            else:
+                (x, y), g = random.choice(arrows), None
+            if g:
+                self.log(T('  Abzweigung: {n} Wege, nehme den Richtung Ziel ({deg}°, {src})', n=len(arrows),
+                           deg=round(np.degrees(g[0])), src=g[1]))
+            else:
+                self.log(T('  Abzweigung: {n} Wege, nehme ({x}, {y})', n=len(arrows), x=x, y=y))
             self.stats['abzweig'] += 1
             self.tap(x, y, 'Weg wählen', wait=1.2)
             return
+        if self.to_goal:
+            g = goal_dir(img)
+            if g:
+                self.last_goal = g
         if self.cards and self.try_card(img):
             return
         if info.get('ap') == 0 and self.go_at_zero:
@@ -379,9 +512,10 @@ class Exerciser:
 
     # ------------------------------------------------------------ Lauf
     def run(self):
-        self.log(T('Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}.',
+        self.log(T('Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}, Abzweigungen {way}.',
                    course=COURSE_NAMES[self.course - 1], story=self.story.upper() if self.story != 'zufall' else T('zufällig'),
-                   cards=T('ja') if self.cards else T('nein'), runs=self.runs or T('alle übrigen')))
+                   cards=T('ja') if self.cards else T('nein'), runs=self.runs or T('alle übrigen'),
+                   way=T('Richtung Ziel') if self.to_goal else T('zufällig')))
         last_state = None
         while True:
             img = self.snap()
