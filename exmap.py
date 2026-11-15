@@ -227,3 +227,40 @@ class Tracker:
             self.goal = cell
             self.goal_sure = True
             self.kinds[cell] = 'ziel'
+
+    def record(self, obs, origin):
+        """Symbole aus einem Bild merken, dessen Mitte (Bezugspunkt) auf dem Feld origin liegt (beim Umschauen)."""
+        for i, j, road, k in obs:
+            c = origin + i * 100 + j
+            if road and k and k != 'unsichtbar' and c in self.course.cells:
+                cnt = self.counts.setdefault(c, {})
+                cnt[k] = cnt.get(k, 0) + 1
+                self.kinds[c] = max(cnt, key=cnt.get)
+        zs = [(cnt.get('ziel', 0), c) for c, cnt in self.counts.items() if cnt.get('ziel')]
+        if zs and not self.goal_sure:
+            self.goal = max(zs)[1]
+
+    def set_goal_at(self, base, center, origin):
+        """Fuß der Fahnenstange (Bildpunkt) beim Umschauen: Bezugspunkt center liegt auf Feld origin."""
+        c = np.array(center, float)
+        m = np.array([XB.U, XB.V]).T
+        i, j = np.linalg.solve(m, np.array(base, float) - c)
+        cell = origin + int(round(i)) * 100 + int(round(j))
+        if cell in self.course.cells and abs(i - round(i)) < 0.35 and abs(j - round(j)) < 0.35:
+            self.goal = cell
+            self.goal_sure = True
+            self.kinds[cell] = 'ziel'
+            return cell
+        return None
+
+    def view_plan(self, start, span=3):
+        """Reihenfolge der Felder, auf die der Bot beim Umschauen die Bildmitte legt, damit die ganze Strecke einmal
+        im Bild war (je Bild etwa ±span Zeilen und Spalten)."""
+        todo = set(self.course.cells)
+        order, cur = [], start
+        while todo and len(order) < 24:
+            nxt = min(todo, key=lambda c: abs(c // 100 - cur // 100) + abs(c % 100 - cur % 100))
+            order.append(nxt)
+            todo -= {c for c in todo if abs(c // 100 - nxt // 100) <= span and abs(c % 100 - nxt % 100) <= span}
+            cur = nxt
+        return order

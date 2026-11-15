@@ -431,6 +431,8 @@ class Exerciser:
         self.bad_ahead = False
         self.want_steps = None              # Steps Setter: so viele Schritte wählen
         self.tracker = None                 # Position auf der Strecke aus den Spieldaten (exmap)
+        self.surveyed = False               # Spielfeld in diesem Lauf schon einmal angesehen
+        self.look_around = True
         self.entered = None                 # Kurs, den der Bot selbst mit „Enter“ gestartet hat
         self.drain = 0                      # Runden mit Stamina Drain
         self.heavy = 0                      # Runden, in denen ein Wurf 2 Action Points kostet (Hantel)
@@ -557,6 +559,7 @@ class Exerciser:
         self.tracker = None
         self.entered = self.course
         self.known_cards = []
+        self.surveyed = False
         return True
 
     def on_board(self, img, info):
@@ -577,6 +580,10 @@ class Exerciser:
         if classify(self.reader.read(img))[0] != 'board':
             return                          # inzwischen ist ein Fenster aufgegangen (Story, Shop ...)
         self.see_map(img)
+        if self.look_around and not self.surveyed and self.map_ok():
+            self.survey()
+            img = self.settle()
+            self.see_map(img)
         arrows = yellow_arrows(img)
         if arrows:
             # die Pfeile pulsieren und die Zielanzeige blinkt: ein paar Bilder ansehen
@@ -708,6 +715,58 @@ class Exerciser:
 
     def map_ok(self):
         return self.tracker is not None and self.tracker.pos is not None
+
+    VIEW = (805, 426)                       # Bildpunkt, auf dem die Figur steht (Mitte ihres Felds)
+
+    def pan(self, dr, dc):
+        """Das Spielfeld so ziehen, dass der Inhalt um dr Zeilen und dc Spalten wandert (in Stücken von höchstens
+        etwa 450 Bildpunkten, am Ende still halten, damit nichts nachläuft)."""
+        v = -(dr * XB.U + dc * XB.V)
+        n = max(1, int(np.ceil(np.linalg.norm(v) / 450)))
+        for _ in range(n):
+            d = v / n
+            x0, y0 = 800 - d[0] / 2, 430 - d[1] / 2
+            x1, y1 = 800 + d[0] / 2, 430 + d[1] / 2
+            if not self.dev.sdrag(x0, y0, x1, y1, ms=700, hold=0.5, steps=14, wait=0.6):
+                if not self.dev.drag(x0, y0, x1, y1, steps=10, hold=0.5, wait=0.6):
+                    self.dev.swipe(x0, y0, x1, y1, ms=900, wait=0.8)
+            time.sleep(0.3)
+
+    def survey(self):
+        """Am Anfang eines Laufs einmal das ganze Spielfeld ansehen (ziehen wie mit dem Finger): wo das Ziel ist und
+        welche Felder wo liegen (Nutzer, 15.11.2026). Danach zurück zur Figur."""
+        t = self.tracker
+        if not self.map_ok() or self.surveyed:
+            return
+        self.surveyed = True
+        self.log(T('  Schaue mir das Spielfeld an ...'))
+        cur = home = t.pos
+        center = np.array([self.VIEW[0], self.VIEW[1] + 15.0])
+        try:
+            for target in t.view_plan(home):
+                dr, dc = target // 100 - cur // 100, target % 100 - cur % 100
+                if dr or dc:
+                    self.pan(dr, dc)
+                img = self.settle(3.0)
+                if classify(self.reader.read(img))[0] != 'board':
+                    break
+                g = goal_dir(img)
+                obs, _ = XM.observe(img, self.VIEW, goal_visible=bool(g and g[1] == 'fahne'))
+                pos, sc, gap = t.course.locate([(i, j, r) for i, j, r, _ in obs], near=target, reach=2)
+                cur = pos if (pos is not None and sc >= 6) else target
+                t.record(obs, cur)
+                if g and g[1] == 'fahne' and g[2] is not None:
+                    t.set_goal_at(g[2], center, cur)
+            # zurück, bis die Figur wieder in der Mitte steht
+            dr, dc = home // 100 - cur // 100, home % 100 - cur % 100
+            if dr or dc:
+                self.pan(dr, dc)
+            self.settle(3.0)
+        except Exception as e:
+            self.log(T('    (Umschauen: {err})', err=e))
+        d = t.course.dist_from(t.pos).get(t.goal) if t.goal else None
+        self.log(T('  Spielfeld angesehen: {k} Symbole bekannt, Ziel {g}', k=len(t.kinds),
+                   g=T('Feld {c} ({n} Felder entfernt)', c=t.goal, n=d) if t.goal else T('nicht gefunden')))
 
     def last_move(self):
         """Letzter Wurf (1 Action Point oder weniger): Karten, die danach verfallen würden, jetzt noch benutzen."""
