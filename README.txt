@@ -89,7 +89,11 @@ At forks it reads the fields on every way (story and gift = diamonds, arrow = +1
 rolls which way brings the most. Before the goal, the goal pulls harder the fewer Action Points are left. Cards:
 Lightweight Runners always; Sports Drink when good fields are only 4 to 6 fields away; Energy Candy with many bad
 fields ahead, when the Action Points for the goal run short, or at the very end; Vitamin C Jell-O against
-Stamina Drain (before the goal), the dumbbell and the swirl. It leaves Reverse and Hitchhiking.
+Stamina Drain (before the goal), the dumbbell and the swirl. Steps Setter when it lands exactly on a good field with it.
+It leaves Reverse and Hitchhiking.
+It knows the courses of all four maps from the game data (folder exercising_daten): it knows which field it
+stands on, remembers every symbol it sees during the run and plans beyond the screen edge and with the exact
+way to the goal.
 In the shop it always picks "Don't Buy". It buys nothing, not even with Action Points.
 Settings in potbot.ini: exercising_kurs (1 to 4), exercising_story (a, b or zufall = random),
 exercising_karten (ja = yes or nein = no), exercising_ziel (einmal = to the goal once, continue, then away;

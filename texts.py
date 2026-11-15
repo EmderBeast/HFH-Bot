@@ -44,7 +44,7 @@ PURPOSE_EN = {
     'Reiter Memory': 'Memory tab', 'Coach ansehen': 'look at a coach', 'Coach auswählen': 'select a coach',
     # Exercising
     'Weg wählen': 'choose the way', 'Karte ansehen': 'look at a card', 'Karten-Fenster schließen': 'close the card window',
-    'Antwort': 'answer', 'Weiterlaufen': 'keep going',
+    'Antwort': 'answer', 'Weiterlaufen': 'keep going', 'Schritte wählen': 'choose steps', 'Bestätigen': 'confirm',
 }
 PURPOSE_RX = [(re.compile(r'^Platz (\w+) ansehen$'), 'look at slot {0}'),
               (re.compile(r'^Platz (\w+) prüfen$'), 'check slot {0}'),
@@ -479,6 +479,12 @@ EN = {
     'Richtung Ziel': 'towards the goal', ', von vorhin': ', from before',
     '  Abzweigung: {n} Wege, nehme den {how} (Ziel bei {deg}°, {src})': '  Fork: {n} ways, taking the one {how} (goal at {deg}°, {src})',
     'weg vom Ziel': 'away from the goal', 'nach Belohnung': 'by reward',
+    '  Am Ziel angekommen.': '  Reached the goal.', '  Strecke erkannt: {name}': '  Course recognised: {name}',
+    ', Ziel {g} ({n} Felder)': ', goal {g} ({n} fields)', '    Karte: Feld {pos}{d}, {k} Symbole bekannt': '    Map: field {pos}{d}, {k} symbols known',
+    '    (Karte: {err})': '    (map: {err})', ', Landung 1/2/3: {o}': ', landing 1/2/3: {o}',
+    '  Steps Setter: {n} Schritte wären gut': '  Steps Setter: {n} steps would be good',
+    '  Steps Setter: {n} Schritte gewählt': '  Steps Setter: {n} steps chosen',
+    '  Steps Setter: die Zahl {n} nicht gefunden (Bildschirmfoto gespeichert); es geht mit GO weiter.': '  Steps Setter: number {n} not found (screenshot saved); going on with GO.',
     '  Story: {q} → {a}{why}': '  Story: {q} → {a}{why}',
     ' (A: {a}, B: {b})': ' (A: {a}, B: {b})',
     ' (Frage nicht in den Spieldaten gefunden, nehme A)': ' (question not found in the game data, taking A)',

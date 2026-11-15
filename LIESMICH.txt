@@ -91,7 +91,11 @@ Bananenschale = -1 Action Point, Fragezeichen = Karte weg, Hand mit Schweiß = S
 den möglichen Würfen aus, welcher Weg am meisten bringt. Vor dem Ziel zieht ihn das Ziel umso stärker an, je
 weniger Action Points übrig sind. Karten: Lightweight Runners immer; Sports Drink, wenn gute Felder erst 4 bis 6
 Felder weit liegen; Energy Candy bei vielen schlechten Feldern voraus, wenn die Action Points fürs Ziel knapp
-werden oder ganz am Ende; Vitamin C Jell-O gegen Stamina Drain (vor dem Ziel), Hantel und Wirbel. Reverse und Hitchhiking lässt er liegen.
+werden oder ganz am Ende; Vitamin C Jell-O gegen Stamina Drain (vor dem Ziel), Hantel und Wirbel. Steps Setter, wenn er damit genau auf einem guten
+Feld landet. Reverse und Hitchhiking lässt er liegen.
+Die Strecken der vier Kurse kennt er aus den Spieldaten (Ordner exercising_daten): Er weiß, auf welchem Feld er
+steht, merkt sich alle Symbole, die er im Lauf sieht, und plant auch über den Bildrand hinaus und mit dem genauen
+Weg zum Ziel.
 Im Shop wählt er immer "Don't Buy". Er kauft nichts, auch nicht mit Action Points.
 Einstellungen in potbot.ini: exercising_kurs (1 bis 4), exercising_story (a, b oder zufall),
 exercising_karten (ja oder nein), exercising_ziel (einmal = erst zum Ziel, dort weiter, dann weg;
