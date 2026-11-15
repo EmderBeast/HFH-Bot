@@ -34,6 +34,8 @@ VALUE = {
     'wirbel': -3.0,         # die Figur läuft in zufällige Richtungen, man kann nicht mehr wählen (Nutzer, 15.11.2026)
     'leer': 0.0,
     'start': 0.0,
+    'ziel': 20.0,           # FINISH: einmal 20 Diamanten (danach 0)
+    'unbekannt': -3.0,      # Symbol, das der Bot nicht kennt (z. B. das Hütchen: 4 oder 8 Action Points weg)
     'banane': -4.0,         # kostet einen Action Point
     'schweiss': -6.0,       # Stamina Drain vor dem Ziel; nach dem Ziel 0
 }
@@ -63,7 +65,7 @@ def ref(img):
 
 
 class Board:
-    def __init__(self, img, spot):
+    def __init__(self, img, spot, goal_visible=True):
         self.im = ref(img)
         self.hsv = cv2.cvtColor(self.im, cv2.COLOR_BGR2HSV)
         self.gray = cv2.cvtColor(self.im, cv2.COLOR_BGR2GRAY).astype(np.float32)
@@ -74,6 +76,7 @@ class Board:
         self.yellow = yellow
         self.c = np.array([float(spot[0]), float(spot[1]) + 15.0])
         self.cache = {}
+        self.goal_visible = goal_visible      # Zielfahne auf dem Brett zu sehen (sonst ist Blau nur Wasser)
 
     def visible(self, p):
         x, y = p
@@ -101,10 +104,19 @@ class Board:
                 crop = self.gray[y - 45:y + 45, x - 75:x + 75]
                 best, kind = 0.0, 'leer'
                 for name, t in templates():
+                    if name == 'ziel' and not self.goal_visible:
+                        continue
                     r = cv2.matchTemplate(crop, t[6:-6, 10:-10], cv2.TM_CCOEFF_NORMED).max()
                     if r > best:
                         best, kind = float(r), name
-                out = kind if best >= 0.5 else 'leer'
+                blue = ((hs[..., 0] >= 100) & (hs[..., 0] <= 118) & (hs[..., 1] >= 90) & (hs[..., 2] < 215)).mean()
+                if blue > 0.10 and self.goal_visible:
+                    out = 'ziel'                 # die karierte Zielfahne steht auf oder über diesem Feld
+                elif best >= 0.5:
+                    out = kind
+                else:
+                    # ein Symbol ist da (dunkle Linien), passt aber zu keiner Vorlage: Vorsicht
+                    out = 'unbekannt' if (crop < 150).mean() > 0.08 else 'leer'
         self.cache[key] = out
         return out
 
@@ -143,7 +155,7 @@ class Board:
 def value(kind, after_goal):
     if kind == 'unsichtbar':
         return UNKNOWN
-    if kind == 'schweiss' and after_goal:
+    if kind in ('schweiss', 'ziel') and after_goal:
         return 0.0
     return VALUE.get(kind, 0.0)
 
@@ -163,9 +175,9 @@ def dir_of(spot, arrow):
     return max(DIRS, key=lambda d: float(np.dot(a, d) / (np.linalg.norm(a) * np.linalg.norm(d) + 1e-9)))
 
 
-def rate_arrows(img, spot, arrows, steps=(1, 2, 3), after_goal=False, goal_angle=None, goal_weight=0.0):
+def rate_arrows(img, spot, arrows, steps=(1, 2, 3), after_goal=False, goal_angle=None, goal_weight=0.0, goal_visible=False):
     """Bewertet jeden Pfeil. Gibt [(Wert, Pfeil, bester Weg)] absteigend sortiert zurück."""
-    b = Board(img, spot)
+    b = Board(img, spot, goal_visible)
     depth = max(steps) + 4
     out = []
     seen = []
@@ -187,7 +199,7 @@ def rate_arrows(img, spot, arrows, steps=(1, 2, 3), after_goal=False, goal_angle
 
 def forward_tiles(img, spot, depth=7):
     """Für die Karten: die Felder in allen Richtungen ab der Figur (bester Weg je Richtung)."""
-    b = Board(img, spot)
+    b = Board(img, spot, False)
     res = []
     for d in DIRS:
         ps = b.paths(b.c, d, depth)

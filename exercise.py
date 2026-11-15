@@ -467,7 +467,8 @@ class Exerciser:
                 elif self.way == 'meiden':
                     w = -3.0
                 rated = XB.rate_arrows(img, spot, arrows, steps=steps, after_goal=self.goal_reached,
-                                       goal_angle=goal[0] if goal else None, goal_weight=w)
+                                       goal_angle=goal[0] if goal else None, goal_weight=w,
+                                       goal_visible=bool(goal and goal[1] == 'fahne'))
                 sc, (x, y), best = rated[0]
                 for r_sc, r_a, r_p in rated:
                     self.log(T('    Weg ({x}, {y}): Wert {v:.1f}  {tiles}', x=r_a[0], y=r_a[1], v=r_sc,
@@ -610,8 +611,11 @@ class Exerciser:
         nt = norm(txt)
         if 'stamina' in nt:
             self.drain = 3
-        if 'actionpoint' in nt and ('2' in nt or 'two' in nt or 'double' in nt or 'twice' in nt) and 'shortcut' not in nt:
-            self.heavy = 3                  # Hantel: jeder Wurf kostet 2 Action Points
+        elif 'shortcut' in nt or 'supply' in nt:
+            pass
+        elif ('actionpoint' in nt and ('2' in nt or 'two' in nt or 'double' in nt or 'twice' in nt)) \
+                or any(w in nt for w in ('random', 'direction', 'dizzy', 'confus', 'cannot', 'cant', 'consum')):
+            self.heavy = 3                  # Hantel (2 AP je Wurf) oder Wirbel (zufällige Richtung): Jell-O hilft
         if not c:
             self.other += 1
             return
