@@ -478,7 +478,7 @@ EN = {
     'Exercising-Bot: Kurs {course}, Story-Antwort {story}, Karten {cards}, Läufe {runs}, Abzweigungen {way}.': 'Exercising bot: course {course}, story answer {story}, cards {cards}, runs {runs}, forks {way}.',
     'Richtung Ziel': 'towards the goal', ', von vorhin': ', from before',
     '  Abzweigung: {n} Wege, nehme den {how} (Ziel bei {deg}°, {src})': '  Fork: {n} ways, taking the one {how} (goal at {deg}°, {src})',
-    'weg vom Ziel': 'away from the goal', '  Schaue mir das Spielfeld an ...': '  Looking over the board ...',
+    'weg vom Ziel': 'away from the goal', '  Rückfrage „{t}“: nicht bestätigen, Fenster schließen': '  Question “{t}”: not confirming, closing the window', '  Schaue mir das Spielfeld an ...': '  Looking over the board ...',
     '    (Umschauen: {err})': '    (looking around: {err})', 'nicht gefunden': 'not found',
     '  Spielfeld angesehen: {k} Symbole bekannt, Ziel {g}': '  Board looked over: {k} symbols known, goal {g}',
     'Feld {c} ({n} Felder entfernt)': 'field {c} ({n} fields away)', 'Es laufen mehrere LDPlayer-Fenster:': 'Several LDPlayer windows are running:',
