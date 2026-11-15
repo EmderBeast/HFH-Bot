@@ -230,6 +230,8 @@ def classify(boxes) -> tuple[str, dict]:
         return 'finish', info
     if has('taptoclose'):
         return 'obtained', info
+    if has('confirmation') and (has('nonegativeeffect') or has('stillwanttouse')):
+        return 'noeffect', info             # Jell-O ohne schlechten Effekt: nicht bestätigen, schließen
     if has('stepselection') or has('movementwillbegin'):
         return 'steps', info
     if any(n in ('gotit', 'gotit!') for n in ns) or has('goaltips'):
@@ -789,6 +791,8 @@ class Exerciser:
             if steps_card:
                 self.choose_steps(self.want_steps)
                 self.want_steps = None
+            if 'vitaminc' in n or 'jello' in n:
+                self.drain = self.heavy = 0     # der schlechte Effekt ist weg
             return
         self.log(T('  Karte „{name}“: bleibt liegen', name=title or '?'))
         if self.card_try:
@@ -941,6 +945,12 @@ class Exerciser:
                 self.on_story(boxes)
             elif state == 'goal':
                 self.on_goal(boxes)
+            elif state == 'noeffect':
+                self.drain = self.heavy = 0
+                t = next((b for b in boxes if b.n.startswith('confirmation')), None)
+                self.log(T('  Kein schlechter Effekt mehr: Vitamin C Jell-O nicht benutzen, Fenster schließen'))
+                # das X oben rechts im Fenster (Screenshot 15.11.2026: Fenster 1600er-Bild x 535-1105, Titel bei y 300)
+                self.tap(1082, t.cy if t else 300, 'Fenster schließen', wait=1.2)
             elif state == 'tips':
                 b = next((b for b in boxes if b.n.startswith('gotit')), None)
                 if b:
