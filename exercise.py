@@ -322,6 +322,7 @@ class Exerciser:
         self.want_double = False
         self.bad_ahead = False
         self.drain = 0                      # Runden mit Stamina Drain
+        self.heavy = 0                      # Runden, in denen ein Wurf 2 Action Points kostet (Hantel)
         self.ap = None
         self.round = None
         self.go_at_zero = False
@@ -421,6 +422,7 @@ class Exerciser:
         self.last_goal = None
         self.goal_reached = False
         self.drain = 0
+        self.heavy = 0
         return True
 
     def on_board(self, img, info):
@@ -431,6 +433,8 @@ class Exerciser:
             self.round_skip = []
             if self.drain > 0:
                 self.drain -= 1
+            if self.heavy > 0:
+                self.heavy -= 1
         img = self.settle()
         if classify(self.reader.read(img))[0] != 'board':
             return                          # inzwischen ist ein Fenster aufgegangen (Story, Shop ...)
@@ -546,7 +550,7 @@ class Exerciser:
             good = self.want_double or (self.ap is not None and self.ap <= 2)
             later = not good
         elif 'vitaminc' in n or 'jello' in n:
-            good = self.drain > 0 and not self.goal_reached
+            good = (self.drain > 0 and not self.goal_reached) or self.heavy > 0
             later = not good
         else:
             good = n in GOOD_CARDS or any(p in norm(text) for p in GOOD_PARTS)
@@ -603,8 +607,11 @@ class Exerciser:
             c = sorted(c, key=lambda b: -b.cy)[:1]
         txt = ' '.join(b.text for b in boxes if ev and ev.cy + 20 < b.cy < ev.cy + 260 and b not in c)
         self.log(T('  Event: {t}', t=txt[:100]))
-        if 'stamina' in norm(txt):
+        nt = norm(txt)
+        if 'stamina' in nt:
             self.drain = 3
+        if 'actionpoint' in nt and ('2' in nt or 'two' in nt or 'double' in nt or 'twice' in nt) and 'shortcut' not in nt:
+            self.heavy = 3                  # Hantel: jeder Wurf kostet 2 Action Points
         if not c:
             self.other += 1
             return
