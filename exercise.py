@@ -104,16 +104,20 @@ def _tpl(name):
     return _TPL[name]
 
 
-def _match(im, tpl, scales):
+def _match(im, tpl, scales, half=True):
+    """Vorlage im Bild suchen; half: auf halber Größe (viermal schneller, ±2 Bildpunkte genau)."""
     best = (0.0, None, 1.0)
     if tpl is None:
         return best
+    if half:
+        im = cv2.resize(im, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+    f = 0.5 if half else 1.0
     for sc in scales:
-        t = cv2.resize(tpl, None, fx=sc, fy=sc)
+        t = cv2.resize(tpl, None, fx=sc * f, fy=sc * f, interpolation=cv2.INTER_AREA)
         r = cv2.matchTemplate(im, t, cv2.TM_CCOEFF_NORMED)
         _, m, _, loc = cv2.minMaxLoc(r)
         if m > best[0]:
-            best = (float(m), (loc[0] + t.shape[1] // 2, loc[1] + t.shape[0] // 2), sc)
+            best = (float(m), (int((loc[0] + t.shape[1] / 2) / f), int((loc[1] + t.shape[0] / 2) / f)), sc)
     return best
 
 
@@ -168,7 +172,7 @@ def goal_dir(img):
         a = _pointer(im, c)
         if a is not None:
             return a, 'anzeige', c
-    m, c, sc = _match(im, _tpl('ziel_fahne.png'), (0.8, 0.9, 1.0, 1.1, 1.2))
+    m, c, sc = _match(im, _tpl('ziel_fahne.png'), (0.85, 1.0, 1.15))
     if m > 0.7:
         base = (c[0] - 43 * sc, c[1] + 143 * sc)         # Fuß der Fahnenstange = Zielfeld
         px, py = player_spot(img)
@@ -728,15 +732,14 @@ class Exerciser:
         """Das Spielfeld so ziehen, dass der Inhalt um dr Zeilen und dc Spalten wandert (in Stücken von höchstens
         etwa 450 Bildpunkten, am Ende still halten, damit nichts nachläuft)."""
         v = -(dr * XB.U + dc * XB.V)
-        n = max(1, int(np.ceil(np.linalg.norm(v) / 450)))
+        n = max(1, int(np.ceil(np.linalg.norm(v) / 650)))
         for _ in range(n):
             d = v / n
             x0, y0 = 800 - d[0] / 2, 430 - d[1] / 2
             x1, y1 = 800 + d[0] / 2, 430 + d[1] / 2
-            if not self.dev.sdrag(x0, y0, x1, y1, ms=700, hold=0.5, steps=14, wait=0.6):
-                if not self.dev.drag(x0, y0, x1, y1, steps=10, hold=0.5, wait=0.6):
-                    self.dev.swipe(x0, y0, x1, y1, ms=900, wait=0.8)
-            time.sleep(0.3)
+            if not self.dev.sdrag(x0, y0, x1, y1, ms=450, hold=0.3, steps=10, wait=0.25):
+                if not self.dev.drag(x0, y0, x1, y1, steps=8, hold=0.3, wait=0.3):
+                    self.dev.swipe(x0, y0, x1, y1, ms=700, wait=0.6)
 
     def survey(self):
         """Am Anfang eines Laufs einmal das ganze Spielfeld ansehen (ziehen wie mit dem Finger): wo das Ziel ist und
@@ -749,14 +752,12 @@ class Exerciser:
         cur = home = t.pos
         center = np.array([self.VIEW[0], self.VIEW[1] + 15.0])
         try:
-            for target in t.view_plan(home):
+            for target in t.view_plan(home, span=4):
                 dr, dc = target // 100 - cur // 100, target % 100 - cur % 100
                 if dr or dc:
                     self.pan(dr, dc)
-                img = self.settle(3.0)
-                if classify(self.reader.read(img))[0] != 'board':
-                    break
-                g = goal_dir(img)
+                img = self.settle(2.0)
+                g = goal_dir(img) if not t.goal_sure else None
                 obs, _ = XM.observe(img, self.VIEW, goal_visible=bool(g and g[1] == 'fahne'))
                 pos, sc, gap = t.course.locate([(i, j, r) for i, j, r, _ in obs], near=target, reach=2)
                 cur = pos if (pos is not None and sc >= 6) else target
