@@ -109,10 +109,7 @@ class Board:
                     r = cv2.matchTemplate(crop, t[6:-6, 10:-10], cv2.TM_CCOEFF_NORMED).max()
                     if r > best:
                         best, kind = float(r), name
-                blue = ((hs[..., 0] >= 100) & (hs[..., 0] <= 118) & (hs[..., 1] >= 90) & (hs[..., 2] < 215)).mean()
-                if blue > 0.10 and self.goal_visible:
-                    out = 'ziel'                 # die karierte Zielfahne steht auf oder über diesem Feld
-                elif best >= 0.5:
+                if best >= 0.5:
                     out = kind
                 else:
                     # ein Symbol ist da (dunkle Linien), passt aber zu keiner Vorlage: Vorsicht
