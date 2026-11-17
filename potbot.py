@@ -28,7 +28,7 @@ LOADOUTS = os.path.join(HERE, 'loadouts')
 LOGS = os.path.join(HERE, 'logs')
 SCANS = os.path.join(HERE, 'scans')
 OLD_FOLDERS = {'aufstellungen': LOADOUTS, 'protokolle': LOGS}     # Namen der ersten Version (1.0)
-VERSION = '1.19 (15.11.2026)'
+VERSION = '1.20 (17.11.2026)'
 
 
 class Log:

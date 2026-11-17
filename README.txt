@@ -267,3 +267,8 @@ NEW IN 1.15 (11.11.2026)
 - Inventory: the reading frame cut off the last digit on the right ("+72" became "+7"); right pieces counted as wrong.
 - With a minimum level (potbot.ini: min_level, 2 to 70) the account scan reads every player from that level on and
   each player's memory along the way; the scan file has the count of every memory.
+
+NEW IN 1.20 (17.11.2026)
+- Account scan: when the hint "Tap to View Recommended Lineup" was showing in "Manage Players", the sort menu did not
+  open. The bot could then not sort by level and did not stop at min_level. It now taps the hint away (on an empty
+  spot, not on the hint) and opens the menu again.

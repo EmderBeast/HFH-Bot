@@ -269,3 +269,8 @@ NEU IN 1.15 (11.11.2026)
 - Inventar: Der Leserahmen schnitt rechts die letzte Ziffer ab ("+72" wurde "+7"); richtige Teile galten als falsch.
 - Der Account-Scan liest mit Mindeststufe (potbot.ini: min_level, 2 bis 70) alle Spieler ab dieser Stufe und die
   Memory gleich beim Spieler mit; die Scan-Datei enthält die Anzahl jeder Memory.
+
+NEU IN 1.20 (17.11.2026)
+- Account-Scan: Stand in "Manage Players" der Hinweis "Tap to View Recommended Lineup", ging das Sortier-Menü nicht auf.
+  Dann konnte der Bot nicht nach Level sortieren und hörte bei min_level nicht auf. Jetzt tippt er den Hinweis weg
+  (auf eine leere Stelle, nicht auf den Hinweis) und öffnet das Menü noch einmal.

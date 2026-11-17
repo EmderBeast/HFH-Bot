@@ -26,6 +26,7 @@ STEP_LIMIT = 4000
 MAX_DUP_RUN = 150
 # Manage Players: Knopf Filter (öffnet das Menü Deploy / Level / Star Level / Rarity / Position) und das Menü
 MP_SORT = (1420, 806)
+MP_HINT_AWAY = (880, 420)                # leere Stelle am Buchrücken: schließt den Hinweis „Tap to View Recommended Lineup“ (nicht auf den Hinweis selbst tippen, der öffnet die Empfehlung)
 MP_SORT_MENU = (1100, 330, 1580, 790)
 # Reiter Skills: Mitte der Zeile "Level x/y" des ersten Skills und Abstand der Skills (gemessen 07.11.2026, Lev Haiba)
 SKILL_Y0, SKILL_DY = 222, 151
@@ -521,8 +522,14 @@ class Scanner(Bot):
     def sort_by(self, what):
         """Manage Players: Sortierung wählen ('rarity', 'deploy', ...). Das Menü geht über dem Knopf Filter auf."""
         self.dev.tap(*MP_SORT, 'Sortierung öffnen', wait=1.0)
-        for _ in range(3):
+        for tries in range(3):
             boxes = self.ocr(self.snap(), MP_SORT_MENU)
+            if tries < 2 and not any(b.n in ('deploy', 'level', 'starlevel', 'rarity', 'position') for b in boxes):
+                # 17.11.2026: Der Hinweis „Tap to View Recommended Lineup“ fing den ersten Tipp ab, das Menü ging nicht
+                # auf. Dann den Hinweis wegtippen und den Knopf noch einmal drücken.
+                self.dev.tap(*MP_HINT_AWAY, 'Hinweis wegtippen', wait=0.8)
+                self.dev.tap(*MP_SORT, 'Sortierung öffnen', wait=1.0)
+                continue
             # 13.11.2026: bei einem Spieler fand er „level“ nicht (anders gelesen); daher auch „lv“ und Teile des Worts
             alias = {'level': ('level', 'lv', 'lvl'), 'deploy': ('deploy',), 'rarity': ('rarity',)}.get(what, (what,))
             hit = ([b for b in boxes if b.n == what] or [b for b in boxes if b.n in alias]
